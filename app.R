@@ -5,9 +5,9 @@ library(shinyjs)
 
 # Store usernames, passwords, and corresponding CSVs
 user_credentials <- data.frame(
-  username = c("client1", "client2", "client3"),
+  username = c("Licht", "PI2", "PI3"),
   password = c("pass1", "pass2", "pass3"),
-  csv_path = c("data/client1.csv", "data/client2.csv", "data/client3.csv"),
+  csv_path = c("data/Licht.csv", "data/PI2.csv", "data/PI3.csv"),
   stringsAsFactors = FALSE
 )
 
@@ -17,7 +17,7 @@ ui <- fluidPage(
   
   # Login Page
   div(id = "login-page",
-      titlePanel("UFHCC BCB-SR: Client Portal"),
+      titlePanel("UFHCC BCB-SR: PI Portal"),
       textInput("username", "Username"),
       passwordInput("password", "Password"),
       actionButton("login", "Login"),
@@ -27,7 +27,7 @@ ui <- fluidPage(
   # Main App (Hidden until login)
   hidden(
     div(id = "main-page",
-        titlePanel("Client Project Tracking"),
+        titlePanel("PI Project Tracking"),
         actionButton("logout", "Logout"),
         DTOutput("projects_table"),
         br(),
@@ -59,7 +59,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Render client-specific table
+  # Render PI-specific table
   output$projects_table <- renderDT({
     user_info <- user_session()
     req(user_info)  # Ensure user is logged in
@@ -90,7 +90,7 @@ server <- function(input, output, session) {
       
       datatable(projects, escape = FALSE, options = list(autoWidth = TRUE))
     } else {
-      return(data.frame(Message = "No projects found for this client."))
+      return(data.frame(Message = "No projects found for this PI."))
     }
   })
   
