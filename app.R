@@ -3,16 +3,16 @@ library(DT)
 library(googlesheets4)
 library(shinyjs)
 
-# Authenticate Google Sheets (Ensure gs4_auth() is run once)
-gs4_auth()
+# Authenticate with Service Account Key
+gs4_auth(path = "data/impressive-rig-452019-k7-41b7048103a6.json")
 
 # Store usernames, passwords, and corresponding Google Sheet IDs
 user_credentials <- data.frame(
   username = c("Licht", "PI2", "PI3"),
   password = c("pass1", "pass2", "pass3"),
-  sheet_id = c("1AbCdEfGhIjKlMnOpQrStUvWxYz123456",   # Licht's Sheet ID
-               "1BcDeFgHiJkLmNoPqRsTuVwXyZ789012345", # PI2's Sheet ID
-               "1CdEfGhIjKlMnOpQrStUvWxYz987654321"), # PI3's Sheet ID
+  sheet_id = c("1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ",   # Licht's Sheet ID
+               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ", # PI2's Sheet ID
+               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ"), # PI3's Sheet ID
   stringsAsFactors = FALSE
 )
 
