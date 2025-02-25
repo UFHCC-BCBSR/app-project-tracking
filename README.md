@@ -3,7 +3,7 @@
 ## 🚀 App Overview
 
 1. **Hosting:**  
-   - Currently hosted on my free **shinyapps.io** account.  
+   - Currently hosted on my free **shinyapps.io** account: https://heatherkates.shinyapps.io/projecttrackingapp/
    - Plan to migrate to a paid domain (Biostats has a token for this?).
 
 2. **Data Updates:**  
