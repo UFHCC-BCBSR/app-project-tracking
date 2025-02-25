@@ -8,7 +8,7 @@ gs4_deauth()
 
 # Verify Service Account Authentication
 tryCatch({
-  gs4_auth(path = Sys.glob("data/*.json"), email = "your-service-account@your-project.iam.gserviceaccount.com")
+  gs4_auth(path = Sys.glob("data/*.json"), email = "")
   message("✅ Authenticated as: ", gs4_user())
 }, error = function(e) {
   stop("❌ Failed to authenticate with service account: ", e$message)
