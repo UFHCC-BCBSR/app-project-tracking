@@ -3,16 +3,35 @@ library(DT)
 library(googlesheets4)
 library(shinyjs)
 
-# Authenticate with Service Account Key
-gs4_auth(path = "data/impressive-rig-452019-k7-41b7048103a6.json")
+# Deauthorize and force service account authentication
+gs4_deauth()
+
+# Verify Service Account Authentication
+tryCatch({
+  gs4_auth(path = Sys.glob("data/*.json"), email = "your-service-account@your-project.iam.gserviceaccount.com")
+  message("✅ Authenticated as: ", gs4_user())
+}, error = function(e) {
+  stop("❌ Failed to authenticate with service account: ", e$message)
+})
+
+# Test Google Sheet access with character-only columns
+test_sheet_id <- "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ"
+
+tryCatch({
+  test_data <- read_sheet(test_sheet_id, col_types = "c")
+  message("✅ Success: You can access the sheet.")
+  print(head(test_data))  # Show sample output for verification
+}, error = function(e) {
+  stop("❌ Access test failed: ", e$message)
+})
 
 # Store usernames, passwords, and corresponding Google Sheet IDs
 user_credentials <- data.frame(
   username = c("Licht", "PI2", "PI3"),
   password = c("pass1", "pass2", "pass3"),
   sheet_id = c("1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ",   # Licht's Sheet ID
-               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ", # PI2's Sheet ID
-               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ"), # PI3's Sheet ID
+               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ",   # PI2's Sheet ID
+               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ"),  # PI3's Sheet ID
   stringsAsFactors = FALSE
 )
 
