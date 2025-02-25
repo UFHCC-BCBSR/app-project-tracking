@@ -1,13 +1,18 @@
 library(shiny)
 library(DT)
-library(readr)
+library(googlesheets4)
 library(shinyjs)
 
-# Store usernames, passwords, and corresponding CSVs
+# Authenticate Google Sheets (Ensure gs4_auth() is run once)
+gs4_auth()
+
+# Store usernames, passwords, and corresponding Google Sheet IDs
 user_credentials <- data.frame(
   username = c("Licht", "PI2", "PI3"),
   password = c("pass1", "pass2", "pass3"),
-  csv_path = c("data/Licht.csv", "data/PI2.csv", "data/PI3.csv"),
+  sheet_id = c("1AbCdEfGhIjKlMnOpQrStUvWxYz123456",   # Licht's Sheet ID
+               "1BcDeFgHiJkLmNoPqRsTuVwXyZ789012345", # PI2's Sheet ID
+               "1CdEfGhIjKlMnOpQrStUvWxYz987654321"), # PI3's Sheet ID
   stringsAsFactors = FALSE
 )
 
@@ -59,14 +64,16 @@ server <- function(input, output, session) {
     }
   })
   
-  # Render PI-specific table
+  # Load and render PI-specific Google Sheet data
   output$projects_table <- renderDT({
     user_info <- user_session()
     req(user_info)  # Ensure user is logged in
     
-    csv_path <- user_info$csv_path
-    if (file.exists(csv_path)) {
-      projects <- read_csv(csv_path, show_col_types = FALSE)
+    sheet_id <- user_info$sheet_id
+    
+    tryCatch({
+      # Read data from the user's specific Google Sheet
+      projects <- read_sheet(sheet_id, col_types = "cccccc")
       
       # Hyperlink formatting
       projects$StudyContact <- paste0("<a href='mailto:", projects$StudyContact, "'>", projects$StudyContact, "</a>")
@@ -89,9 +96,9 @@ server <- function(input, output, session) {
       })
       
       datatable(projects, escape = FALSE, options = list(autoWidth = TRUE))
-    } else {
-      return(data.frame(Message = "No projects found for this PI."))
-    }
+    }, error = function(e) {
+      return(data.frame(Message = "❌ Failed to load projects. Check Google Sheet permissions."))
+    })
   })
   
   # Logout functionality
