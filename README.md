@@ -17,7 +17,7 @@
 
 ---
 
-## 🔄 How to Update Data (as-is)
+## 🔄 How to Update
 
 ### 1️⃣ Clone the Repo
 
@@ -31,7 +31,7 @@ cd ProjectTrackingApp
 
 ---
 
-### 2️⃣ Edit `projects.csv`
+### 2️⃣ Edit `project files
 
 - Make desired updates (add new PIs, change PI passwords, update project fields, change visuals, etc.).
 
