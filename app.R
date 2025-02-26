@@ -8,7 +8,8 @@ library(readr)
 pi_csv_urls <- list(
   "Licht"  = "https://www.dropbox.com/scl/fi/3f6mcl8qqdpy02c1kolhc/Licht.csv?rlkey=uuresz960g9t7c5wnj02ocm8w&st=btr55int&raw=1",
   "Sharma" = "https://www.dropbox.com/scl/fi/3bmwn8u8raxiz9nnehpow/Sharma.csv?rlkey=u1qt2whmtebgw1ujybt2glynp&st=j7gg3qex&raw=1",
-  "Zhang"  = "https://www.dropbox.com/scl/fi/ee0toedp8ed5ptzi4el9y/Zhang.csv?rlkey=xcbxf4dejaj9lw46hknygay5b&st=qwy56qrw&raw=1"
+  
+  "Zhang"  = "https://www.dropbox.com/scl/fi/ee0toedp8ed5ptzi4el9y/Zhang.csv?rlkey=xcbxf4dejaj9lw46hknygay5b&st=8nlef3bq&raw=1"
 )
 
 # Function to check last modification time
@@ -129,12 +130,39 @@ server <- function(input, output, session) {
       
       data <- projects()
       
-      # Format table if data is valid
-      if (!"Message" %in% colnames(data)) {
-        data$StudyContact <- paste0("<a href='mailto:", data$StudyContact, "'>", data$StudyContact, "</a>")
-        data$Bioinformatician <- paste0("<a href='mailto:", data$Bioinformatician, "'>", data$Bioinformatician, "</a>")
-        data$RawData <- paste0("<a href='", data$RawData, "' target='_blank'>Link</a>")
+      if ("Message" %in% colnames(data)) {
+        log_message("❌ Failed to load project data.")
+        return(data.frame(Message = data$Message))
+      }
+      
+      # Format columns while checking for blank values
+      if (!is.null(data) && nrow(data) > 0) {
+        # Convert emails to clickable links (only if not blank)
+        data$StudyContact <- ifelse(
+          is.na(data$StudyContact) | data$StudyContact == "",
+          "",  # Leave blank if missing
+          paste0("<a href='mailto:", data$StudyContact, "'>", data$StudyContact, "</a>")
+        )
+        
+        data$Bioinformatician <- ifelse(
+          is.na(data$Bioinformatician) | data$Bioinformatician == "",
+          "",  # Leave blank if missing
+          paste0("<a href='mailto:", data$Bioinformatician, "'>", data$Bioinformatician, "</a>")
+        )
+        
+        # Format RawData link (only if not blank)
+        data$RawData <- ifelse(
+          is.na(data$RawData) | data$RawData == "",
+          "",  # Empty if missing
+          paste0("<a href='", data$RawData, "' target='_blank'>Link</a>")
+        )
+        
+        # Handle multiple reports with dropdown (only if not blank)
         data$Report <- sapply(data$Report, function(report) {
+          if (is.na(report) || report == "") {
+            return("")  # Empty if missing
+          }
+          
           reports <- unlist(strsplit(report, ";"))
           if (length(reports) > 1) {
             paste0(
@@ -147,11 +175,15 @@ server <- function(input, output, session) {
             paste0("<a href='", reports, "' target='_blank'>Report</a>")
           }
         })
+      } else {
+        log_message("⚠️ No valid project data available.")
+        return(data.frame(Message = "No project data available."))
       }
       
-      # Display table
+      # Display DataTable
       datatable(data, escape = FALSE, options = list(autoWidth = TRUE))
     })
+    
   })
   
   # Logout functionality
