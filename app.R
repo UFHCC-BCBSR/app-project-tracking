@@ -123,7 +123,7 @@ server <- function(input, output, session) {
       return(data.frame(Message = data$Message))  # Show error messages if any
     }
     
-    # ✅ Ensure all new columns exist before modifying
+    # Ensure all new columns exist before modifying
     required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", "DataType", "Status", "RawData", "Report", "Notes", "AdditionalFiles")
     missing_cols <- setdiff(required_columns, colnames(data))
     
@@ -131,12 +131,12 @@ server <- function(input, output, session) {
       data[[col]] <- NA  # Create empty columns for missing fields
     }
     
-    # ✅ Convert Initiated to a consistent date format
+    # Convert Initiated to a consistent date format
     data$Initiated <- as.character(
       as.Date(data$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
     )
     
-    # ✅ Convert StudyContact and Bioinformatician to email links
+    # Convert StudyContact and Bioinformatician to email links
     data$StudyContact <- ifelse(
       is.na(data$StudyContact) | data$StudyContact == "",
       "",
@@ -149,14 +149,14 @@ server <- function(input, output, session) {
       paste0("<a href='mailto:", data$Bioinformatician, "'>", data$Bioinformatician, "</a>")
     )
     
-    # ✅ Convert RawData to clickable links
+    # Convert RawData to clickable links
     data$RawData <- ifelse(
       is.na(data$RawData) | data$RawData == "",
       "",
       paste0("<a href='", data$RawData, "' target='_blank'>Link</a>")
     )
     
-    # ✅ Handle multiple reports with dropdown
+    # Handle multiple reports with dropdown
     data$Report <- sapply(data$Report, function(report) {
       if (is.na(report) || report == "") {
         return("")  # Empty if missing
@@ -175,7 +175,7 @@ server <- function(input, output, session) {
       }
     })
     
-    # ✅ Format DataDictionary as link with appropriate text
+    # Format DataDictionary as link with appropriate text
     data$DataDictionary <- sapply(data$DataDictionary, function(entry) {
       if (is.na(entry) || entry == "") {
         return("Unsubmitted")  # Show "Unsubmitted" if the field is empty
@@ -198,7 +198,7 @@ server <- function(input, output, session) {
       }
     })
     
-    # ✅ Format AdditionalFiles as a hyperlink
+    # Format AdditionalFiles as a hyperlink
     data$AdditionalFiles <- sapply(data$AdditionalFiles, function(entry) {
       if (is.na(entry) || entry == "") {
         return("None")  # Show "None" if the field is empty
@@ -212,7 +212,7 @@ server <- function(input, output, session) {
       }
     })
     
-    # ✅ Display the table with proper formatting
+    # Display the table with proper formatting
     datatable(data, escape = FALSE, options = list(autoWidth = TRUE))
   })
   
