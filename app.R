@@ -35,10 +35,10 @@ read_data_safe <- function(url) {
     # Check file type and set temporary file extension
     temp_file <- tempfile(fileext = ifelse(grepl("\\.xlsx$", url, ignore.case = TRUE), ".xlsx", ".csv"))
     
-    # 🔽 Download file from Dropbox
+    # Download file from Dropbox
     download.file(url, temp_file, mode = "wb")
     
-    # 📥 Read based on file type
+    # Read based on file type
     if (grepl("\\.xlsx", url, ignore.case = TRUE)) {
       data <- read_xlsx(temp_file, sheet = 1, col_names = TRUE)
     } else {
@@ -123,12 +123,18 @@ server <- function(input, output, session) {
       return(data.frame(Message = data$Message))  # Show error messages if any
     }
     
-    # ✅ Convert Initiated to a consistent date format
-    if ("Initiated" %in% colnames(data)) {
-      data$Initiated <- as.character(
-        as.Date(data$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
-      )
+    # ✅ Ensure all new columns exist before modifying
+    required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", "DataType", "Status", "RawData", "Report", "Notes", "AdditionalFiles")
+    missing_cols <- setdiff(required_columns, colnames(data))
+    
+    for (col in missing_cols) {
+      data[[col]] <- NA  # Create empty columns for missing fields
     }
+    
+    # ✅ Convert Initiated to a consistent date format
+    data$Initiated <- as.character(
+      as.Date(data$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
+    )
     
     # ✅ Convert StudyContact and Bioinformatician to email links
     data$StudyContact <- ifelse(
@@ -192,8 +198,21 @@ server <- function(input, output, session) {
       }
     })
     
+    # ✅ Format AdditionalFiles as a hyperlink
+    data$AdditionalFiles <- sapply(data$AdditionalFiles, function(entry) {
+      if (is.na(entry) || entry == "") {
+        return("None")  # Show "None" if the field is empty
+      }
+      
+      # If there's a valid URL, format it as a hyperlink
+      if (grepl("^https?://", entry)) {
+        return(paste0("<a href='", entry, "' target='_blank'>Additional Files</a>"))
+      } else {
+        return("None")  # If entry is not a valid URL, return "None"
+      }
+    })
     
-    # ✅ Display table with formatting
+    # ✅ Display the table with proper formatting
     datatable(data, escape = FALSE, options = list(autoWidth = TRUE))
   })
   
