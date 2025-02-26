@@ -3,7 +3,7 @@
 ## 🚀 App Overview
 
 1. **Hosting:**  
-   - Currently hosted on my BCB-SR shinyapp.io https://ufhcc-bqs.shinyapps.io/projecttrackingapp/
+   - Hosted on the BCB-SR shinyapp.io https://ufhcc-bqs.shinyapps.io/projecttrackingapp/
    - Account, token, and secret are in the repo so you should not need to authenticate before deploying.
 
 2. **Data Updates:**  
