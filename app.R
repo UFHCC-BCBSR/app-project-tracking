@@ -1,39 +1,21 @@
 library(shiny)
 library(DT)
-library(googlesheets4)
 library(shinyjs)
+library(httr)
+library(readr)
 
-# Deauthorize and force service account authentication
-gs4_deauth()
+# Dropbox CSV URL (ensure ?raw=1 at the end)
+csv_url <- "https://www.dropbox.com/scl/fi/3f6mcl8qqdpy02c1kolhc/Licht.csv?rlkey=uuresz960g9t7c5wnj02ocm8w&st=btr55int&raw=1"
 
-# Verify Service Account Authentication
-tryCatch({
-  gs4_auth(path = Sys.glob("data/*.json"), email = "")
-  message("✅ Authenticated as: ", gs4_user())
-}, error = function(e) {
-  stop("❌ Failed to authenticate with service account: ", e$message)
-})
-
-# Test Google Sheet access with character-only columns
-test_sheet_id <- "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ"
-
-tryCatch({
-  test_data <- read_sheet(test_sheet_id, col_types = "c")
-  message("✅ Success: You can access the sheet.")
-  print(head(test_data))  # Show sample output for verification
-}, error = function(e) {
-  stop("❌ Access test failed: ", e$message)
-})
-
-# Store usernames, passwords, and corresponding Google Sheet IDs
-user_credentials <- data.frame(
-  username = c("Licht", "PI2", "PI3"),
-  password = c("pass1", "pass2", "pass3"),
-  sheet_id = c("1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ",   # Licht's Sheet ID
-               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ",   # PI2's Sheet ID
-               "1lXjNVh7yERmtLIr8m3wkMn_8K82h4pSE2aHXvmSHwpQ"),  # PI3's Sheet ID
-  stringsAsFactors = FALSE
-)
+# Function to check last modification time of the file
+get_last_modified <- function(url) {
+  tryCatch({
+    headers <- HEAD(url)$headers
+    as.numeric(as.POSIXct(headers[["last-modified"]], format = "%a, %d %b %Y %H:%M:%S GMT", tz = "GMT"))
+  }, error = function(e) {
+    Sys.time()  # Fallback if header fails
+  })
+}
 
 # UI
 ui <- fluidPage(
@@ -71,11 +53,11 @@ server <- function(input, output, session) {
     user <- input$username
     pass <- input$password
     
-    # Validate credentials
-    valid_user <- user_credentials[user_credentials$username == user & user_credentials$password == pass, ]
+    # Dummy user credentials (replace with secure method if needed)
+    valid_user <- user %in% c("Licht", "PI2", "PI3") && pass %in% c("pass1", "pass2", "pass3")
     
-    if (nrow(valid_user) == 1) {
-      user_session(valid_user)
+    if (valid_user) {
+      user_session(TRUE)
       hide("login-page")
       show("main-page")
     } else {
@@ -83,41 +65,47 @@ server <- function(input, output, session) {
     }
   })
   
-  # Load and render PI-specific Google Sheet data
-  output$projects_table <- renderDT({
-    user_info <- user_session()
-    req(user_info)  # Ensure user is logged in
-    
-    sheet_id <- user_info$sheet_id
-    
-    tryCatch({
-      # Read data from the user's specific Google Sheet
-      projects <- read_sheet(sheet_id, col_types = "cccccc")
-      
-      # Hyperlink formatting
-      projects$StudyContact <- paste0("<a href='mailto:", projects$StudyContact, "'>", projects$StudyContact, "</a>")
-      projects$Bioinformatician <- paste0("<a href='mailto:", projects$Bioinformatician, "'>", projects$Bioinformatician, "</a>")
-      projects$RawData <- paste0("<a href='", projects$RawData, "' target='_blank'>Link</a>")
-      
-      # Handle multiple reports with dropdown
-      projects$Report <- sapply(projects$Report, function(report) {
-        reports <- unlist(strsplit(report, ";"))
-        if (length(reports) > 1) {
-          paste0(
-            "<select onchange=\"window.open(this.value, '_blank')\">",
-            "<option value=''>Select Version</option>",
-            paste0("<option value='", reports, "'>Version ", seq_along(reports), "</option>", collapse = ""),
-            "</select>"
-          )
-        } else {
-          paste0("<a href='", reports, "' target='_blank'>Report</a>")
-        }
+  # Reactive polling to check for CSV updates every 10 seconds
+  projects <- reactivePoll(
+    10000,  # Check every 10 seconds
+    session,
+    checkFunc = function() get_last_modified(csv_url),
+    valueFunc = function() {
+      tryCatch({
+        read_csv(csv_url, show_col_types = FALSE)
+      }, error = function(e) {
+        message("❌ Failed to read CSV: ", e$message)
+        data.frame(Message = "Failed to load projects.")
       })
-      
-      datatable(projects, escape = FALSE, options = list(autoWidth = TRUE))
-    }, error = function(e) {
-      return(data.frame(Message = "❌ Failed to load projects. Check Google Sheet permissions."))
+    }
+  )
+  
+  # Render DataTable
+  output$projects_table <- renderDT({
+    data <- projects()
+    
+    # Convert emails and links to clickable format
+    data$StudyContact <- paste0("<a href='mailto:", data$StudyContact, "'>", data$StudyContact, "</a>")
+    data$Bioinformatician <- paste0("<a href='mailto:", data$Bioinformatician, "'>", data$Bioinformatician, "</a>")
+    data$RawData <- paste0("<a href='", data$RawData, "' target='_blank'>Link</a>")
+    
+    # Handle multiple reports with dropdown
+    data$Report <- sapply(data$Report, function(report) {
+      reports <- unlist(strsplit(report, ";"))
+      if (length(reports) > 1) {
+        paste0(
+          "<select onchange=\"window.open(this.value, '_blank')\">",
+          "<option value=''>Select Version</option>",
+          paste0("<option value='", reports, "'>Version ", seq_along(reports), "</option>", collapse = ""),
+          "</select>"
+        )
+      } else {
+        paste0("<a href='", reports, "' target='_blank'>Report</a>")
+      }
     })
+    
+    # Display table
+    datatable(data, escape = FALSE, options = list(autoWidth = TRUE))
   })
   
   # Logout functionality
