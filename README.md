@@ -3,23 +3,17 @@
 ## 🚀 App Overview
 
 1. **Hosting:**  
-   - Currently hosted on my free **shinyapps.io** account: https://heatherkates.shinyapps.io/projecttrackingapp/
-   - Plan to migrate to a paid domain (Biostats has a token for this?).
+   - Currently hosted on my BCB-SR shinyapp.io https://ufhcc-bqs.shinyapps.io/projecttrackingapp/
+   - Account, token, and secret are in the repo so you should not need to authenticate before deploying.
 
 2. **Data Updates:**  
-   - App updates by editing `data/projects.csv` and redeploying.  
-   - Only I can redeploy due to token-based authentication.
+   - App updates automatically when project csv files are edited in https://www.dropbox.com/scl/fo/6wz676apw47spbbt9zcv3/AEsFkqN560lTK6xae7rcoqM?rlkey=h8m8qz7vks0ur2coldl7txdon&st=y6jtdzy2&dl=0
+   - To edit csv files in dropbox you *must* have Dropbox desktop installed and syncing (at least this folder, anyway). csv files cannot be edited directly in dropbox online.
+   - To add PIs and change fields in the project spreadsheet (or make other changes to the site), follow steps in "How to Update" below.
 
 3. **Data Storage:**  
-   - Raw data and reports are hosted on **Dropbox**, which seems more manageable than HiPerGator for now.  
-   - Raw sequencing files can be compressed for easier uploading.
-
----
-
-## 📈 Improvements Needed
-
-1. Host app on a **paid named domain**.  
-2. Enable **Google Sheets integration** for live updates without redeployment (UFIT manages Google Cloud authentication).
+   - Raw data and reports are hosted on **Dropbox**, which seems more manageable than HiPerGator. You can use any link you want, though. OneDrive should work too. Set permissions with usual care.
+   - Raw sequencing files can be compressed and easily copied from /orange to dropbox using globus and dropbox Desktop.
 
 ---
 
@@ -29,41 +23,42 @@
 
 ```bash
 # Clone the GitHub repository
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+git clone https://github.com/HeatherKates/ProjectTrackingApp.git
 
 # Move into the project folder
-cd YOUR_REPO
+cd ProjectTrackingApp
 ```
 
 ---
 
 ### 2️⃣ Edit `projects.csv`
 
-- Open `data/projects.csv` in Excel or a text editor.
-- Make desired updates (add new projects, update statuses, etc.).
-- Save the file.
+- Make desired updates (add new PIs, change PI passwords, update project fields, change visuals, etc.).
 
 ---
 
 ### 3️⃣ Commit and Push Changes
 
 ```bash
-# Stage the updated CSV
-git add data/projects.csv
+# Stage the updated files (whichever you have updated)
+git add app.R
+git add scripts/init_db.R
 
 # Commit the change with a message
-git commit -m "Update project tracking CSV"
+git commit -m "Add a notes field"
 
 # Push changes to the remote GitHub repository
 git push origin main
 
-# Email me so I can redeploy
-[hkates@ufl.edu](mailto:hkates@ufl.edu)
+# Redeploy
+library(rsconnect)
+rsconnect::deployApp()
+
 ```
 
 ---
 
-## 🚀 How to Redeploy App
+## 🚀 Subsequent redeployments 
 
 1. Pull the latest changes from GitHub:
 
@@ -71,7 +66,9 @@ git push origin main
 git pull origin main
 ```
 
-2. Redeploy the app to ShinyApps.io from your R session:
+2. Make changes if needed following steps above.
+
+3. Redeploy the app to ShinyApps.io from your R session:
 
 ```r
 library(rsconnect)
