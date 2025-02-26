@@ -115,32 +115,45 @@ server <- function(input, output, session) {
   )
   
   output$projects_table <- renderDT({
-    req(user_csv_url())  
+    req(user_csv_url())  # Ensure a URL exists
+    
     data <- projects()
     
     if ("Message" %in% colnames(data)) {
-      return(data.frame(Message = data$Message))
+      return(data.frame(Message = data$Message))  # Show error messages if any
     }
     
-    # Convert emails and links to clickable format
+    # ✅ Convert Initiated to a consistent date format
+    if ("Initiated" %in% colnames(data)) {
+      data$Initiated <- as.character(
+        as.Date(data$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
+      )
+    }
+    
+    # ✅ Convert StudyContact and Bioinformatician to email links
     data$StudyContact <- ifelse(
       is.na(data$StudyContact) | data$StudyContact == "",
-      "", paste0("<a href='mailto:", data$StudyContact, "'>", data$StudyContact, "</a>")
+      "",
+      paste0("<a href='mailto:", data$StudyContact, "'>", data$StudyContact, "</a>")
     )
     
     data$Bioinformatician <- ifelse(
       is.na(data$Bioinformatician) | data$Bioinformatician == "",
-      "", paste0("<a href='mailto:", data$Bioinformatician, "'>", data$Bioinformatician, "</a>")
+      "",
+      paste0("<a href='mailto:", data$Bioinformatician, "'>", data$Bioinformatician, "</a>")
     )
     
+    # ✅ Convert RawData to clickable links
     data$RawData <- ifelse(
       is.na(data$RawData) | data$RawData == "",
-      "", paste0("<a href='", data$RawData, "' target='_blank'>Link</a>")
+      "",
+      paste0("<a href='", data$RawData, "' target='_blank'>Link</a>")
     )
     
+    # ✅ Handle multiple reports with dropdown
     data$Report <- sapply(data$Report, function(report) {
       if (is.na(report) || report == "") {
-        return("")  
+        return("")  # Empty if missing
       }
       
       reports <- unlist(strsplit(report, ";"))
@@ -156,6 +169,31 @@ server <- function(input, output, session) {
       }
     })
     
+    # ✅ Format DataDictionary as link with appropriate text
+    data$DataDictionary <- sapply(data$DataDictionary, function(entry) {
+      if (is.na(entry) || entry == "") {
+        return("Unsubmitted")  # Show "Unsubmitted" if the field is empty
+      }
+      
+      # Split the entry into parts (expecting "Status; URL" format)
+      parts <- unlist(strsplit(entry, "; "))
+      
+      # Extract status text
+      status_text <- parts[1]
+      
+      # Extract URL (if it exists)
+      url <- ifelse(length(parts) > 1, parts[2], "")
+      
+      # If there's a valid URL, format it as a hyperlink
+      if (grepl("^https?://", url)) {
+        return(paste0("<a href='", url, "' target='_blank'>", status_text, "</a>"))
+      } else {
+        return(status_text)  # If no valid URL, return just the status
+      }
+    })
+    
+    
+    # ✅ Display table with formatting
     datatable(data, escape = FALSE, options = list(autoWidth = TRUE))
   })
   
