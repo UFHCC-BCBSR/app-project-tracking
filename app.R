@@ -75,7 +75,7 @@ ui <- tagList(
   
   # Navbar with Logo (Logo placed via JS in code.js)
   navbarPage(
-    title = div(class = "navbar-brand", "UFHCC Portal"),
+    title = div(class = "navbar-brand", "UFHCC BCB-SR Bioinformatics Project Portal"),
     windowTitle = "UFHCC Portal",
     collapsible = TRUE,
     fluid = TRUE,
