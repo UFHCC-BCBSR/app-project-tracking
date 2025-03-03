@@ -3,15 +3,13 @@ library(DT)
 library(shinyjs)
 library(httr)
 library(readr)
-
- # "Licht"  = "https://www.dropbox.com/scl/fi/3f6mcl8qqdpy02c1kolhc/Licht.csv?rlkey=uuresz960g9t7c5wnj02ocm8w&st=btr55int&raw=1",
 library(readxl)
 
 # Dropbox File URLs for each PI
 pi_csv_urls <- list(
   #"Licht"  = "https://dl.dropboxusercontent.com/scl/fi/1lvauptlumrljx0q99vjh/Licht.xlsx?rlkey=w06dezs3w1bgdagqha0o744jz&st=sdhwds2n",
   "Licht" = "https://www.dropbox.com/scl/fi/rtl1ugx5q88jdbn75p5cl/Licht.xlsx?rlkey=gkx0fs5kgxovlq83hvopo9h1j&st=24l84lb8&raw=1",
-  "Sharma" = "https://www.dropbox.com/scl/fi/pwxbohyjenyjw7wbqrzjb/Sharma.xlsx?rlkey=8lwi7t58bhmv7r7jhvmjben4z&st=sqecbghz&raw=1",
+  "Sharma" = "https://www.dropbox.com/scl/fi/pwxbohyjenyjw7wbqrzjb/Sharma.xlsx?rlkey=8lwi7t58bhmv7r7jhvmjben4z&st=zu3mb9e3&raw=1",
   "Zhang"  = "https://www.dropbox.com/scl/fi/xp4apspwizjfnu8f447s6/Zhang.xlsx?rlkey=pme7lzpqzjw7rselrwjkcv9nl&st=qup96sxl&raw=1"
 )
 
@@ -32,7 +30,7 @@ read_data_safe <- function(url) {
     url <- sub("\\?dl=1$", "?raw=1", url)
     
     # Check file type and set temporary file extension
-    temp_file <- tempfile(fileext = ifelse(grepl("\\.xlsx$", url, ignore.case = TRUE), ".xlsx", ".csv"))
+    temp_file <- tempfile(fileext = ifelse(grepl("\\.xlsx", url, ignore.case = TRUE), ".xlsx", ".csv"))
     
     # Download file from Dropbox
     download.file(url, temp_file, mode = "wb")
@@ -44,19 +42,12 @@ read_data_safe <- function(url) {
       data <- read_csv(temp_file, show_col_types = FALSE)
     }
     
-    # Ensure "ReportDeliveredOn" column exists, otherwise add it with NA values
-    if (!"ReportDeliveredOn" %in% colnames(data)) {
-      data$ReportDeliveredOn <- NA
-    }
-    
     return(data)
     
   }, error = function(e) {
     return(data.frame(Message = paste("Failed to load projects. Error:", e$message)))
   })
 }
-
-
 
 # UI
 ui <- fluidPage(
@@ -128,19 +119,31 @@ server <- function(input, output, session) {
       return(data.frame(Message = data$Message))  # Show error messages if any
     }
     
-    # Ensure required columns exist, including "ReportDeliveredOn"
+    # Ensure required columns exist
     required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
                           "DataType", "Status", "RawData", "Report", "Notes", 
-                          "AdditionalFiles", "ReportDeliveredOn")
+                          "AdditionalFiles", "LastUpdate","MultiQC")
     missing_cols <- setdiff(required_columns, colnames(data))
     
     for (col in missing_cols) {
       data[[col]] <- NA  # Create empty columns for missing fields
     }
     
-    # Convert "ReportDeliveredOn" to a consistent date format
-    data$ReportDeliveredOn <- as.character(
-      as.Date(data$ReportDeliveredOn, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
+    # Convert "LastUpdate" to a consistent date format
+    data$LasteUpdate <- as.character(
+      as.Date(data$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
+    )
+    
+    data$`MultiQC Report` <- ifelse(
+      is.na(data$`MultiQC Report`) | data$`MultiQC Report` == "",
+      "",
+      paste0("<a href='", data$`MultiQC Report`, "' download>MultiQC Report</a>")
+    )
+    
+    data$Report <- ifelse(
+      is.na(data$Report) | data$Report == "",
+      "",
+      paste0("<a href='", data$Report, "' download>Report</a>")
     )
     
     data$DataDictionary <- sapply(data$DataDictionary, function(entry) {
@@ -151,7 +154,7 @@ server <- function(input, output, session) {
       # Expecting "Status; URL" format, split into parts
       parts <- unlist(strsplit(entry, "; "))
       
-      # Extract status text (default to "Submitted" if only URL exists)
+      # Extract status text (default to "Data Dictionary" if only URL exists)
       status_text <- ifelse(length(parts) > 1, parts[1], "Submitted")
       
       # Extract URL (if it exists)
@@ -164,13 +167,6 @@ server <- function(input, output, session) {
         return(status_text)  # Just return the status if no URL is present
       }
     })
-    
-    
-    data$Report <- ifelse(
-      is.na(data$Report) | data$Report == "",
-      "",
-      paste0("<a href='", data$Report, "' download>Report</a>")
-    )
     
     data$RawData <- ifelse(
       is.na(data$RawData) | data$RawData == "",
