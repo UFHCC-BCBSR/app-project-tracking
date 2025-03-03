@@ -26,7 +26,6 @@ get_last_modified <- function(url) {
 }
 
 # Function to safely read CSV or Excel files directly from Dropbox
-# Function to safely read CSV or Excel files from Dropbox
 read_data_safe <- function(url) {
   tryCatch({
     # Ensure correct Dropbox format (forces direct file access)
@@ -45,12 +44,18 @@ read_data_safe <- function(url) {
       data <- read_csv(temp_file, show_col_types = FALSE)
     }
     
+    # Ensure "ReportDeliveredOn" column exists, otherwise add it with NA values
+    if (!"ReportDeliveredOn" %in% colnames(data)) {
+      data$ReportDeliveredOn <- NA
+    }
+    
     return(data)
     
   }, error = function(e) {
     return(data.frame(Message = paste("Failed to load projects. Error:", e$message)))
   })
 }
+
 
 
 # UI
@@ -123,94 +128,62 @@ server <- function(input, output, session) {
       return(data.frame(Message = data$Message))  # Show error messages if any
     }
     
-    # Ensure all new columns exist before modifying
-    required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", "DataType", "Status", "RawData", "Report", "Notes", "AdditionalFiles")
+    # Ensure required columns exist, including "ReportDeliveredOn"
+    required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
+                          "DataType", "Status", "RawData", "Report", "Notes", 
+                          "AdditionalFiles", "ReportDeliveredOn")
     missing_cols <- setdiff(required_columns, colnames(data))
     
     for (col in missing_cols) {
       data[[col]] <- NA  # Create empty columns for missing fields
     }
     
-    # Convert Initiated to a consistent date format
-    data$Initiated <- as.character(
-      as.Date(data$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
+    # Convert "ReportDeliveredOn" to a consistent date format
+    data$ReportDeliveredOn <- as.character(
+      as.Date(data$ReportDeliveredOn, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
     )
     
-    # Convert StudyContact and Bioinformatician to email links
-    data$StudyContact <- ifelse(
-      is.na(data$StudyContact) | data$StudyContact == "",
-      "",
-      paste0("<a href='mailto:", data$StudyContact, "'>", data$StudyContact, "</a>")
-    )
-    
-    data$Bioinformatician <- ifelse(
-      is.na(data$Bioinformatician) | data$Bioinformatician == "",
-      "",
-      paste0("<a href='mailto:", data$Bioinformatician, "'>", data$Bioinformatician, "</a>")
-    )
-    
-    # Convert RawData to clickable links
-    data$RawData <- ifelse(
-      is.na(data$RawData) | data$RawData == "",
-      "",
-      paste0("<a href='", data$RawData, "' target='_blank'>Link</a>")
-    )
-    
-    # Handle multiple reports with dropdown
-    data$Report <- sapply(data$Report, function(report) {
-      if (is.na(report) || report == "") {
-        return("")  # Empty if missing
-      }
-      
-      reports <- unlist(strsplit(report, ";"))
-      if (length(reports) > 1) {
-        paste0(
-          "<select onchange=\"window.open(this.value, '_blank')\">",
-          "<option value=''>Select Version</option>",
-          paste0("<option value='", reports, "'>Version ", seq_along(reports), "</option>", collapse = ""),
-          "</select>"
-        )
-      } else {
-        paste0("<a href='", reports, "' target='_blank'>Report</a>")
-      }
-    })
-    
-    # Format DataDictionary as link with appropriate text
     data$DataDictionary <- sapply(data$DataDictionary, function(entry) {
       if (is.na(entry) || entry == "") {
         return("Unsubmitted")  # Show "Unsubmitted" if the field is empty
       }
       
-      # Split the entry into parts (expecting "Status; URL" format)
+      # Expecting "Status; URL" format, split into parts
       parts <- unlist(strsplit(entry, "; "))
       
-      # Extract status text
-      status_text <- parts[1]
+      # Extract status text (default to "Submitted" if only URL exists)
+      status_text <- ifelse(length(parts) > 1, parts[1], "Submitted")
       
       # Extract URL (if it exists)
-      url <- ifelse(length(parts) > 1, parts[2], "")
+      url <- ifelse(length(parts) > 1, parts[2], parts[1])
       
-      # If there's a valid URL, format it as a hyperlink
+      # Ensure proper hyperlink formatting
       if (grepl("^https?://", url)) {
-        return(paste0("<a href='", url, "' target='_blank'>", status_text, "</a>"))
+        return(paste0("<a href='", url, "' download>", status_text, "</a>"))
       } else {
-        return(status_text)  # If no valid URL, return just the status
+        return(status_text)  # Just return the status if no URL is present
       }
     })
     
-    # Format AdditionalFiles as a hyperlink
-    data$AdditionalFiles <- sapply(data$AdditionalFiles, function(entry) {
-      if (is.na(entry) || entry == "") {
-        return("None")  # Show "None" if the field is empty
-      }
-      
-      # If there's a valid URL, format it as a hyperlink
-      if (grepl("^https?://", entry)) {
-        return(paste0("<a href='", entry, "' target='_blank'>Additional Files</a>"))
-      } else {
-        return("None")  # If entry is not a valid URL, return "None"
-      }
-    })
+    
+    data$Report <- ifelse(
+      is.na(data$Report) | data$Report == "",
+      "",
+      paste0("<a href='", data$Report, "' download>Report</a>")
+    )
+    
+    data$RawData <- ifelse(
+      is.na(data$RawData) | data$RawData == "",
+      "",
+      paste0("<a href='", data$RawData, "' download>Raw Data</a>")
+    )
+    
+    data$AdditionalFiles <- ifelse(
+      is.na(data$AdditionalFiles) | data$AdditionalFiles == "",
+      "None",
+      paste0("<a href='", data$AdditionalFiles, "' download>Additional Files</a>")
+    )
+    
     
     # Display the table with proper formatting
     datatable(data, escape = FALSE, options = list(autoWidth = TRUE))
