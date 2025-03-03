@@ -4,6 +4,7 @@ library(shinyjs)
 library(httr)
 library(readr)
 library(readxl)
+library(shinythemes)
 
 # Dropbox File URLs for each PI
 pi_csv_urls <- list(
@@ -49,26 +50,64 @@ read_data_safe <- function(url) {
   })
 }
 
-# UI
-ui <- fluidPage(
-  useShinyjs(),
-  div(id = "login-page",
-      titlePanel("UFHCC BCB-SR: PI Portal"),
-      textInput("username", "Username"),
-      passwordInput("password", "Password"),
-      actionButton("login", "Login"),
-      verbatimTextOutput("login_status")
+# Define UI
+ui <- tagList(
+  tags$head(
+    tags$script(type="text/javascript", src = "code.js"),
+    tags$style(HTML("
+    body {font-family: 'Myriad Pro', sans-serif;}
+    h1, h2, h3, h4, h5, h6 {font-family: 'Minion Pro', serif;}
+                    .navbar { background-color: #00274D; padding: 10px; display: flex; align-items: flex-end; }
+                        .navbar-brand { font-size: 50px !important; font-weight: bold; color: white !important; display: flex; align-items: flex-end; }
+                      .navbar .container-fluid { display: flex; align-items: flex-end; }
+                      .navbar .container-fluid img { max-height: 50px !important; align-self: flex-end;}
+    .login-panel {background-color: #00274D; color: white; padding: 10px; border-radius: 8px;}
+    .btn-primary {background-color: #00274D; border: none; color: white;}
+    .btn-danger {background-color: #D9534F; border: none; color: white;}
+    
+    /* Adjust Logo Size */
+    .navbar .container-fluid img {
+      max-height: 100px !important;  /* Adjust logo height */
+      width: auto;
+    }
+  "))
   ),
-  hidden(
-    div(id = "main-page",
-        titlePanel("PI Project Tracking"),
-        actionButton("logout", "Logout"),
-        DTOutput("projects_table"),
-        br(),
-        p("For inquiries, contact ", a("BCB-SR", href = "mailto:example@ufhcc.edu"))
+  
+  # Navbar with Logo (Logo placed via JS in code.js)
+  navbarPage(
+    title = div(class = "navbar-brand", "UFHCC Portal"),
+    windowTitle = "UFHCC Portal",
+    collapsible = TRUE,
+    fluid = TRUE,
+    div(id = "login-page",
+        div(class = "login-panel",
+            h3("PI Portal Login"),
+            textInput("username", "Username"),
+            passwordInput("password", "Password"),
+            actionButton("login", "Login", class = "btn-primary"),
+            verbatimTextOutput("login_status")
+        )
+    ),
+    hidden(
+      div(id = "main-page",
+          tabsetPanel(
+            tabPanel("Project Tracking",
+                     fluidRow(
+                       column(12,
+                              actionButton("logout", "Logout", class = "btn-danger pull-right"),
+                              DTOutput("projects_table")
+                       )
+                     ),
+                     br(),
+                     p("For inquiries, contact ", a("BCB-SR", href = "mailto:example@ufhcc.edu"))
+            )
+          )
+      )
     )
   )
+  
 )
+
 
 # Server
 server <- function(input, output, session) {
