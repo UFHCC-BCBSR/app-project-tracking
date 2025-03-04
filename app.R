@@ -13,7 +13,13 @@ pi_csv_urls <- list(
   "Sharma" = "https://www.dropbox.com/scl/fi/pwxbohyjenyjw7wbqrzjb/Sharma.xlsx?rlkey=8lwi7t58bhmv7r7jhvmjben4z&st=zu3mb9e3&raw=1",
   "Zhang"  = "https://www.dropbox.com/scl/fi/xp4apspwizjfnu8f447s6/Zhang.xlsx?rlkey=pme7lzpqzjw7rselrwjkcv9nl&st=qup96sxl&raw=1"
 )
-
+# User credentials
+valid_users <- list(
+  "Licht"  = "pass1",
+  "Sharma" = "pass2",
+  "Zhang"  = "pass3",
+  "admin"  = "adminpass"  # Master Login
+)
 # Function to check last modification time
 get_last_modified <- function(url) {
   tryCatch({
@@ -58,7 +64,7 @@ ui <- tagList(
     body {font-family: 'Myriad Pro', sans-serif;}
     h1, h2, h3, h4, h5, h6 {font-family: 'Minion Pro', serif;}
                     .navbar { background-color: #00274D; padding: 10px; display: flex; align-items: flex-end; }
-                        .navbar-brand { font-size: 50px !important; font-weight: bold; color: white !important; display: flex; align-items: flex-end; }
+                        .navbar-brand { font-size: 30px !important; font-weight: bold; color: white !important; display: flex; align-items: flex-end; }
                       .navbar .container-fluid { display: flex; align-items: flex-end; }
                       .navbar .container-fluid img { max-height: 50px !important; align-self: flex-end;}
     .login-panel {background-color: #00274D; color: white; padding: 10px; border-radius: 8px;}
@@ -90,20 +96,18 @@ ui <- tagList(
     ),
     hidden(
       div(id = "main-page",
-          tabsetPanel(
-            tabPanel("Project Tracking",
-                     fluidRow(
-                       column(12,
-                              actionButton("logout", "Logout", class = "btn-danger pull-right"),
-                              DTOutput("projects_table")
-                       )
-                     ),
-                     br(),
-                     p("For inquiries, contact ", a("BCB-SR", href = "mailto:example@ufhcc.edu"))
+          textOutput("admin_message"),  # Admin message placeholder
+          fluidRow(
+            column(12,
+                   actionButton("logout", "Logout", class = "btn-danger pull-right"),
+                   DTOutput("projects_table")  # <- This will now work for both Admin & PI
             )
-          )
+          ),
+          br(),
+          p("For inquiries, contact ", a("BCB-SR", href = "mailto:example@ufhcc.edu"))
       )
     )
+    
   )
   
 )
@@ -119,11 +123,97 @@ server <- function(input, output, session) {
     user <- trimws(input$username)
     pass <- input$password
     
-    valid_users <- c("Licht" = "pass1", "Sharma" = "pass2", "Zhang" = "pass3")
+    valid_users <- c("Licht" = "pass1", "Sharma" = "pass2", "Zhang" = "pass3", "admin" = "adminpass")
     
     if (!is.null(valid_users[[user]]) && valid_users[[user]] == pass) {
       user_session(user)
-      user_csv_url(pi_csv_urls[[user]])
+      output$login_status <- renderText("")  # Clear logout message
+      
+      # Select the correct dataset
+      if (user == "admin") {
+        data_to_display <- do.call(rbind, lapply(names(pi_csv_urls), function(pi_name) {
+          data <- read_data_safe(pi_csv_urls[[pi_name]])
+          data$PI <- pi_name  # Add PI column
+          return(data)
+        }))
+      } else {
+        user_csv_url(pi_csv_urls[[user]])
+        data_to_display <- read_data_safe(user_csv_url())  
+      }
+      
+      # Apply formatting before rendering
+      output$projects_table <- renderDT({
+        req(data_to_display)
+        
+        # Ensure required columns exist
+        required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
+                              "DataType", "Status", "RawData", "Report", "Notes", 
+                              "AdditionalFiles", "LastUpdate", "MultiQC", "PI")
+        missing_cols <- setdiff(required_columns, colnames(data_to_display))
+        
+        for (col in missing_cols) {
+          data_to_display[[col]] <- NA
+        }
+        
+        # Convert "LastUpdate" to a consistent date format
+        data_to_display$LastUpdate <- as.character(
+          as.Date(data_to_display$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
+        )
+        
+        # Formatting MultiQC Report
+        data_to_display$`MultiQC Report` <- ifelse(
+          is.na(data_to_display$`MultiQC Report`) | data_to_display$`MultiQC Report` == "",
+          "",
+          paste0("<a href='", data_to_display$`MultiQC Report`, "' download>MultiQC Report</a>")
+        )
+        
+        # Formatting Reports
+        data_to_display$Report <- ifelse(
+          is.na(data_to_display$Report) | data_to_display$Report == "",
+          "",
+          paste0("<a href='", data_to_display$Report, "' download>Report</a>")
+        )
+        
+        # Formatting Data Dictionary
+        data_to_display$DataDictionary <- sapply(data_to_display$DataDictionary, function(entry) {
+          if (is.na(entry) || entry == "") {
+            return("Unsubmitted")  # Show "Unsubmitted" if the field is empty
+          }
+          
+          # Expecting "Status; URL" format, split into parts
+          parts <- unlist(strsplit(entry, "; "))
+          
+          # Extract status text (default to "Data Dictionary" if only URL exists)
+          status_text <- ifelse(length(parts) > 1, parts[1], "Submitted")
+          
+          # Extract URL (if it exists)
+          url <- ifelse(length(parts) > 1, parts[2], parts[1])
+          
+          # Ensure proper hyperlink formatting
+          if (grepl("^https?://", url)) {
+            return(paste0("<a href='", url, "' download>", status_text, "</a>"))
+          } else {
+            return(status_text)  # Just return the status if no URL is present
+          }
+        })
+        
+        # Formatting Raw Data
+        data_to_display$RawData <- ifelse(
+          is.na(data_to_display$RawData) | data_to_display$RawData == "",
+          "",
+          paste0("<a href='", data_to_display$RawData, "' download>Raw Data</a>")
+        )
+        
+        # Formatting Additional Files
+        data_to_display$AdditionalFiles <- ifelse(
+          is.na(data_to_display$AdditionalFiles) | data_to_display$AdditionalFiles == "",
+          "None",
+          paste0("<a href='", data_to_display$AdditionalFiles, "' download>Additional Files</a>")
+        )
+        
+        # Display the table with proper formatting
+        datatable(data_to_display, escape = FALSE, options = list(autoWidth = TRUE))
+      })
       
       hide("login-page")
       show("main-page")
@@ -131,6 +221,8 @@ server <- function(input, output, session) {
       output$login_status <- renderText("❌ Invalid username or password.")
     }
   })
+  
+  
   
   projects <- reactivePoll(
     10000,
@@ -225,12 +317,15 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$logout, {
-    user_session(NULL)
-    user_csv_url(NULL)
-    hide("main-page")
-    show("login-page")
-    output$login_status <- renderText("✅ Successfully logged out.")
+    user_session(NULL)  # Reset user session
+    user_csv_url(NULL)  # Reset PI file selection
+    output$projects_table <- renderDT(NULL)  # Clear table output
+    output$login_status <- renderText("✅ Successfully logged out.")  # Show logout message
+    
+    hide("main-page")  # Hide main page
+    show("login-page")  # Show login page again
   })
+  
 }
 
 shinyApp(ui, server)
