@@ -129,11 +129,20 @@ server <- function(input, output, session) {
       user_session(user)
       output$login_status <- renderText("")  # Clear logout message
       
-      # Select the correct dataset
       if (user == "admin") {
         data_to_display <- do.call(rbind, lapply(names(pi_csv_urls), function(pi_name) {
           data <- read_data_safe(pi_csv_urls[[pi_name]])
           data$PI <- pi_name  # Add PI column
+          
+          # Fix: Ensure "LastUpdate" is always read as character
+          if ("LastUpdate" %in% colnames(data)) {
+            data$LastUpdate <- as.character(data$LastUpdate)
+          }
+          
+          if ("Initiated" %in% colnames(data)) {
+            data$Initiated <- as.character(data$Initiated)
+          }
+          
           return(data)
         }))
       } else {
@@ -159,6 +168,7 @@ server <- function(input, output, session) {
         data_to_display$LastUpdate <- as.character(
           as.Date(data_to_display$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
         )
+        
         
         # Formatting MultiQC Report
         data_to_display$`MultiQC Report` <- ifelse(
@@ -261,7 +271,7 @@ server <- function(input, output, session) {
     }
     
     # Convert "LastUpdate" to a consistent date format
-    data$LasteUpdate <- as.character(
+    data$LastUpdate <- as.character(
       as.Date(data$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
     )
     
