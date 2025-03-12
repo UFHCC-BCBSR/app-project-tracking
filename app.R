@@ -141,8 +141,9 @@ server <- function(input, output, session) {
           }
           
           if ("Initiated" %in% colnames(data)) {
-            data$Initiated <- format(as.POSIXct(data$Initiated, tz = "UTC"), "%m/%d/%Y")
+            data$Initiated <- as.character(data$Initiated)
           }
+          
           
           
           return(data)
@@ -262,6 +263,13 @@ server <- function(input, output, session) {
             return(status_text)  # Just return the status if no URL is present
           }
         })
+        
+        # Convert "Initiated" to a consistent date format
+        data_to_display$Initiated <- as.character(
+          as.Date(data_to_display$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
+        )
+        
+        
         
         # Formatting Raw Data
         data_to_display$RawData <- ifelse(
