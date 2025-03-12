@@ -279,11 +279,53 @@ server <- function(input, output, session) {
         )
         
         # Formatting Additional Files
-        data_to_display$AdditionalFiles <- ifelse(
-          is.na(data_to_display$AdditionalFiles) | data_to_display$AdditionalFiles == "",
-          "None",
-          paste0("<a href='", data_to_display$AdditionalFiles, "' download>Additional Files</a>")
-        )
+        data_to_display$AdditionalFiles <- sapply(seq_along(data_to_display$AdditionalFiles), function(i) {
+          entry <- data_to_display$AdditionalFiles[i]
+          
+          # If entry is NA or empty, return "None"
+          if (is.na(entry) || entry == "") {
+            return("None")
+          }
+          
+          # Split the entry by ";" to extract multiple filename:URL pairs
+          file_entries <- unlist(strsplit(entry, "; "))
+          
+          # Extract filenames and URLs
+          file_links <- lapply(file_entries, function(file_entry) {
+            parts <- unlist(strsplit(file_entry, ": "))  # Splitting "Filename: URL"
+            
+            if (length(parts) < 2) {
+              return("")  # Skip if formatting is wrong
+            }
+            
+            filename <- parts[1]
+            file_url <- parts[2]
+            
+            return(paste0("<a class='dropdown-item' href='", file_url, "' download>Download ", filename, "</a>"))
+          })
+          
+          file_links <- file_links[file_links != ""]  # Remove empty values (if any)
+          
+          # If only one file, show a direct download link
+          if (length(file_links) == 1) {
+            return(file_links[[1]])
+          }
+          
+          # If multiple files, create a dropdown menu
+          unique_id <- paste0("dropdown-files-", i)  # Unique ID for each dropdown
+          
+          dropdown_items <- paste0("<li>", paste(unlist(file_links), collapse = "</li><li>"), "</li>")
+          
+          return(paste0("
+    <div class='dropdown'>
+      <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>
+        Additional Files
+      </button>
+      <ul class='dropdown-menu'>", dropdown_items, "</ul>
+    </div>
+  "))
+        })
+        
         
         # Display the table with proper formatting
         datatable(data_to_display, escape = FALSE, options = list(autoWidth = TRUE))
