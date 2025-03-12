@@ -141,8 +141,9 @@ server <- function(input, output, session) {
           }
           
           if ("Initiated" %in% colnames(data)) {
-            data$Initiated <- as.character(data$Initiated)
+            data$Initiated <- format(as.POSIXct(data$Initiated, tz = "UTC"), "%m/%d/%Y")
           }
+          
           
           return(data)
         }))
@@ -158,7 +159,8 @@ server <- function(input, output, session) {
         # Ensure required columns exist
         required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
                               "DataType", "Status", "RawData", "Report", "Notes", 
-                              "AdditionalFiles", "LastUpdate", "MultiQC", "PI")
+                              "AdditionalFiles", "LastUpdate", "MultiQC Report")
+
         missing_cols <- setdiff(required_columns, colnames(data_to_display))
         
         for (col in missing_cols) {
@@ -176,7 +178,6 @@ server <- function(input, output, session) {
           "",
           paste0("<a href='", data_to_display$`MultiQC Report`, "' download>MultiQC Report</a>")
         )
-        # Format Notes Column: Convert semicolon-separated values into a dropdown list
         # Format Notes Column: Convert semicolon-separated values into a dropdown list
         if ("Notes" %in% colnames(data_to_display)) {
           data_to_display$Notes <- sapply(seq_along(data_to_display$Notes), function(i) {
@@ -204,11 +205,40 @@ server <- function(input, output, session) {
         
         
         # Formatting Reports
-        data_to_display$Report <- ifelse(
-          is.na(data_to_display$Report) | data_to_display$Report == "",
-          "",
-          paste0("<a href='", data_to_display$Report, "' download>Report</a>")
-        )
+        data_to_display$Report <- sapply(seq_along(data_to_display$Report), function(i) {
+          entry <- data_to_display$Report[i]
+          
+          # If entry is NA or empty, return empty string
+          if (is.na(entry) || entry == "") {
+            return("")
+          }
+          
+          # Split the entry by ";" to extract multiple URLs
+          report_list <- unlist(strsplit(entry, "; "))
+          
+          # If only one URL, display a simple "Download Report" link
+          if (length(report_list) == 1) {
+            return(paste0("<a href='", report_list[1], "' download>Download Report</a>"))
+          }
+          
+          # If multiple URLs, create a dropdown button with multiple links
+          unique_id <- paste0("dropdown-report-", i)  # Unique ID for each dropdown
+          
+          dropdown_items <- paste0(
+            "<li><a class='dropdown-item' href='", report_list, "' download>Download Report V", seq_along(report_list), "</a></li>",
+            collapse = ""
+          )
+          
+          return(paste0("
+    <div class='dropdown'>
+      <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>
+        Reports
+      </button>
+      <ul class='dropdown-menu'>", dropdown_items, "</ul>
+    </div>
+  "))
+        })
+        
         
         # Formatting Data Dictionary
         data_to_display$DataDictionary <- sapply(data_to_display$DataDictionary, function(entry) {
