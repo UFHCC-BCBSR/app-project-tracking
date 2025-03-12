@@ -131,24 +131,38 @@ server <- function(input, output, session) {
       output$login_status <- renderText("")  # Clear logout message
       
       if (user == "admin") {
-        data_to_display <- do.call(rbind, lapply(names(pi_csv_urls), function(pi_name) {
+        # Define required columns (ensure consistency across all sheets)
+        required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
+                              "DataType", "Status", "RawData", "Report", "Notes", 
+                              "AdditionalFiles", "LastUpdate", "MultiQC Report", "PI",
+                              "hipergator filepath")  # Ensure this column exists
+        
+        # Read and standardize data for each PI
+        data_list <- lapply(names(pi_csv_urls), function(pi_name) {
           data <- read_data_safe(pi_csv_urls[[pi_name]])
           data$PI <- pi_name  # Add PI column
           
-          # Fix: Ensure "LastUpdate" is always read as character
+          # Ensure required columns exist in this dataset
+          missing_cols <- setdiff(required_columns, colnames(data))
+          for (col in missing_cols) {
+            data[[col]] <- NA  # Add missing columns as NA
+          }
+          
+          # Fix date formatting
           if ("LastUpdate" %in% colnames(data)) {
             data$LastUpdate <- as.character(data$LastUpdate)
           }
-          
           if ("Initiated" %in% colnames(data)) {
             data$Initiated <- as.character(data$Initiated)
           }
           
-          
-          
-          return(data)
-        }))
-      } else {
+          return(data[, required_columns])  # Reorder columns to maintain consistency
+        })
+        
+        # Combine all standardized datasets
+        data_to_display <- do.call(rbind, data_list)
+      }
+      else {
         user_csv_url(pi_csv_urls[[user]])
         data_to_display <- read_data_safe(user_csv_url())  
       }
@@ -160,7 +174,7 @@ server <- function(input, output, session) {
         # Ensure required columns exist
         required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
                               "DataType", "Status", "RawData", "Report", "Notes", 
-                              "AdditionalFiles", "LastUpdate", "MultiQC Report")
+                              "AdditionalFiles", "LastUpdate", "MultiQC Report","hipergator filepath")
 
         missing_cols <- setdiff(required_columns, colnames(data_to_display))
         
@@ -172,13 +186,29 @@ server <- function(input, output, session) {
         data_to_display$LastUpdate <- as.character(
           as.Date(data_to_display$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
         )
+        # Ensure "hipergator filepath" column exists in all datasets
+        if (!"hipergator filepath" %in% colnames(data_to_display)) {
+          data_to_display$`hipergator filepath` <- NA
+        }
+        # Determine columns to display based on user session
+        displayed_cols <- colnames(data_to_display)
+        
+        if (user_session() != "admin") {
+          displayed_cols <- setdiff(displayed_cols, "hipergator filepath")  # Hide for non-admin users
+        }
 
         # Formatting MultiQC Report
         data_to_display$`MultiQC Report` <- ifelse(
           is.na(data_to_display$`MultiQC Report`) | data_to_display$`MultiQC Report` == "",
           "",
-          paste0("<a href='", data_to_display$`MultiQC Report`, "' download>MultiQC Report</a>")
+          paste0("<a href='", data_to_display$`MultiQC Report`, "' download>Download MultiQC Report</a>")
         )
+        data_to_display$`Dropbox Project Folder` <- ifelse(
+          is.na(data_to_display$`Dropbox Project Folder`) | data_to_display$`Dropbox Project Folder` == "",
+          "",
+          paste0("<a href='", data_to_display$`Dropbox Project Folder`, "' target='_blank' rel='noopener noreferrer'>Visit Dropbox Project Folder</a>")
+        )
+        
         # Format Notes Column: Convert semicolon-separated values into a dropdown list
         if ("Notes" %in% colnames(data_to_display)) {
           data_to_display$Notes <- sapply(seq_along(data_to_display$Notes), function(i) {
@@ -328,7 +358,8 @@ server <- function(input, output, session) {
         
         
         # Display the table with proper formatting
-        datatable(data_to_display, escape = FALSE, options = list(autoWidth = TRUE))
+        datatable(data_to_display[, displayed_cols, drop = FALSE], escape = FALSE, options = list(autoWidth = TRUE))
+        
       })
       
       hide("login-page")
@@ -366,6 +397,7 @@ server <- function(input, output, session) {
     hide("main-page")  # Hide main page
     show("login-page")  # Show login page again
   })
+  
   
 }
 
