@@ -11,13 +11,15 @@ pi_csv_urls <- list(
   #"Licht"  = "https://dl.dropboxusercontent.com/scl/fi/1lvauptlumrljx0q99vjh/Licht.xlsx?rlkey=w06dezs3w1bgdagqha0o744jz&st=sdhwds2n",
   "Licht" = "https://www.dropbox.com/scl/fi/rtl1ugx5q88jdbn75p5cl/Licht.xlsx?rlkey=gkx0fs5kgxovlq83hvopo9h1j&st=24l84lb8&raw=1",
   "Sharma" = "https://www.dropbox.com/scl/fi/pwxbohyjenyjw7wbqrzjb/Sharma.xlsx?rlkey=8lwi7t58bhmv7r7jhvmjben4z&st=zu3mb9e3&raw=1",
-  "Zhang"  = "https://www.dropbox.com/scl/fi/xp4apspwizjfnu8f447s6/Zhang.xlsx?rlkey=pme7lzpqzjw7rselrwjkcv9nl&st=qup96sxl&raw=1"
+  "Zhang"  = "https://www.dropbox.com/scl/fi/xp4apspwizjfnu8f447s6/Zhang.xlsx?rlkey=pme7lzpqzjw7rselrwjkcv9nl&st=qup96sxl&raw=1",
+  "Xing" = "https://www.dropbox.com/scl/fi/hmje516zfe9eqmehpiloz/Xing.xlsx?rlkey=umh6hahlzt7lq5bpkbbo9xyug&st=zsqj5rdw&raw=1"
 )
 # User credentials
 valid_users <- list(
   "Licht"  = "pass1",
   "Sharma" = "pass2",
   "Zhang"  = "pass3",
+  "Xing"="pass4",
   "admin"  = "adminpass"  # Master Login
 )
 # Function to check last modification time
@@ -123,7 +125,7 @@ server <- function(input, output, session) {
     user <- trimws(input$username)
     pass <- input$password
     
-    valid_users <- c("Licht" = "pass1", "Sharma" = "pass2", "Zhang" = "pass3", "admin" = "adminpass")
+    valid_users <- c("Licht" = "pass1", "Sharma" = "pass2", "Zhang" = "pass3", "Xing"="pass4", "admin" = "adminpass")
     
     if (!is.null(valid_users[[user]]) && valid_users[[user]] == pass) {
       user_session(user)
@@ -176,6 +178,28 @@ server <- function(input, output, session) {
           "",
           paste0("<a href='", data_to_display$`MultiQC Report`, "' download>MultiQC Report</a>")
         )
+        # Format Notes Column: Convert semicolon-separated values into a dropdown list
+        if ("Notes" %in% colnames(data_to_display)) {
+          data_to_display$Notes <- sapply(data_to_display$Notes, function(entry) {
+            if (is.na(entry) || entry == "") {
+              return("No Notes")
+            }
+            
+            notes_list <- unlist(strsplit(entry, "; "))
+            dropdown_items <- paste0("<li class='dropdown-item'>", paste(notes_list, collapse = "</li><li class='dropdown-item'>"), "</li>")
+            
+            return(paste0("
+      <div class='dropdown'>
+        <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>
+          View Notes
+        </button>
+        <div class='dropdown-menu' aria-labelledby='dropdownMenuButton'>
+          ", dropdown_items, "
+        </div>
+      </div>
+    "))
+          })
+        }
         
         # Formatting Reports
         data_to_display$Report <- ifelse(
@@ -286,6 +310,25 @@ server <- function(input, output, session) {
       "",
       paste0("<a href='", data$Report, "' download>Report</a>")
     )
+    
+    # Format Notes Column: Convert semicolon-separated values into a dropdown list
+    if ("Notes" %in% colnames(data)) {
+      data$Notes <- sapply(data$Notes, function(entry) {
+        if (is.na(entry) || entry == "") {
+          return("No Notes")
+        }
+        
+        notes_list <- unlist(strsplit(entry, "; "))
+        dropdown_items <- paste0("<li>", paste(notes_list, collapse = "</li><li>"), "</li>")
+        
+        return(paste0("<div class='dropdown'>
+                      <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>
+                        View Notes
+                      </button>
+                      <ul class='dropdown-menu'>", dropdown_items, "</ul>
+                    </div>"))
+      })
+    }
     
     data$DataDictionary <- sapply(data$DataDictionary, function(entry) {
       if (is.na(entry) || entry == "") {
