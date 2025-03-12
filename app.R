@@ -59,6 +59,7 @@ read_data_safe <- function(url) {
 
 # Define UI
 ui <- tagList(
+  #useShinyjs(), 
   tags$head(
     tags$script(type="text/javascript", src = "code.js"),
     tags$style(HTML("
@@ -92,23 +93,43 @@ ui <- tagList(
             textInput("username", "Username"),
             passwordInput("password", "Password"),
             actionButton("login", "Login", class = "btn-primary"),
-            verbatimTextOutput("login_status")
+            verbatimTextOutput("login_status"),
+            
+            # ✅ HIDDEN LOGOUT BUTTON ON PAGE LOAD
+            hidden(
+              div(
+                id = "logout-container",
+                style = "padding-top: 10px;",
+                actionButton("logout", "Logout", class = "btn-danger")
+              )
+            )
         )
     ),
+    
     hidden(
       div(id = "main-page",
+          
+          # Description Block
+          div(class = "app-description",
+              h3("UFHCC BCB-SR Bioinformatics Project Portal"),
+              p(HTML("This portal provides a way to track and manage bioinformatics projects at UFHCC BCB-SR.")),
+              p(HTML("Users can log in to view their projects, track progress, and download relevant reports and data.")),
+              p(HTML("Note that <strong>access to the portal does not grant access to data</strong>; data access is controlled by file storage services (e.g., Dropbox)."))
+          ),
+          
           textOutput("admin_message"),  # Admin message placeholder
+          
           fluidRow(
             column(12,
-                   actionButton("logout", "Logout", class = "btn-danger pull-right"),
-                   DTOutput("projects_table")  # <- This will now work for both Admin & PI
+                  
+                   DTOutput("projects_table")  # <- Works for both Admin & PI
             )
           ),
+          
           br(),
-          p("For inquiries, contact ", a("BCB-SR", href = "mailto:example@ufhcc.edu"))
+          p("For inquiries, contact ", a("BCB-SR", href = "mailto:UFHCC-BCB-SR@ufl.edu"))
       )
     )
-    
   )
   
 )
@@ -116,7 +137,7 @@ ui <- tagList(
 
 # Server
 server <- function(input, output, session) {
-  
+  hide("logout-container")
   user_session <- reactiveVal(NULL)
   user_csv_url <- reactiveVal(NULL)
   
@@ -129,13 +150,16 @@ server <- function(input, output, session) {
     if (!is.null(valid_users[[user]]) && valid_users[[user]] == pass) {
       user_session(user)
       output$login_status <- renderText("")  # Clear logout message
-      
+      hide("login-page")
+      show("main-page")
+      show("logout-container")  # Show logout button after login
+      print("✅ Logout button should now be visible!")  # Debugging
       if (user == "admin") {
         # Define required columns (ensure consistency across all sheets)
         required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
                               "DataType", "Status", "RawData", "Report", "Notes", 
                               "AdditionalFiles", "LastUpdate", "MultiQC Report", "PI",
-                              "hipergator filepath")  # Ensure this column exists
+                              "hipergator filepath","Dropbox Project Folder")  # Ensure this column exists
         
         # Read and standardize data for each PI
         data_list <- lapply(names(pi_csv_urls), function(pi_name) {
@@ -361,9 +385,8 @@ server <- function(input, output, session) {
         datatable(data_to_display[, displayed_cols, drop = FALSE], escape = FALSE, options = list(autoWidth = TRUE))
         
       })
+
       
-      hide("login-page")
-      show("main-page")
     } else {
       output$login_status <- renderText("❌ Invalid username or password.")
     }
@@ -396,6 +419,7 @@ server <- function(input, output, session) {
     
     hide("main-page")  # Hide main page
     show("login-page")  # Show login page again
+    hide("logout-container")  # Hide logout button when logging out
   })
   
   
