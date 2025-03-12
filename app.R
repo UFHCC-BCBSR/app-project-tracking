@@ -177,6 +177,7 @@ server <- function(input, output, session) {
           paste0("<a href='", data_to_display$`MultiQC Report`, "' download>MultiQC Report</a>")
         )
         # Format Notes Column: Convert semicolon-separated values into a dropdown list
+        # Format Notes Column: Convert semicolon-separated values into a dropdown list
         if ("Notes" %in% colnames(data_to_display)) {
           data_to_display$Notes <- sapply(seq_along(data_to_display$Notes), function(i) {
             entry <- data_to_display$Notes[i]
@@ -195,8 +196,7 @@ server <- function(input, output, session) {
         View Notes
       </button>
       <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>
-        <h4 style='margin-top: 0; font-size: 16px;'>Notes</h4>
-        <p style='white-space: normal;'>", formatted_notes, "</p>
+        <p style='white-space: normal;'>", formatted_notes, "</p>  <!-- Removed the <h4> header -->
       </div>
     "))
           })
