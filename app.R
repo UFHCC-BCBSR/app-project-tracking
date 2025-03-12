@@ -8,7 +8,6 @@ library(shinythemes)
 
 # Dropbox File URLs for each PI
 pi_csv_urls <- list(
-  #"Licht"  = "https://dl.dropboxusercontent.com/scl/fi/1lvauptlumrljx0q99vjh/Licht.xlsx?rlkey=w06dezs3w1bgdagqha0o744jz&st=sdhwds2n",
   "Licht" = "https://www.dropbox.com/scl/fi/rtl1ugx5q88jdbn75p5cl/Licht.xlsx?rlkey=gkx0fs5kgxovlq83hvopo9h1j&st=24l84lb8&raw=1",
   "Sharma" = "https://www.dropbox.com/scl/fi/pwxbohyjenyjw7wbqrzjb/Sharma.xlsx?rlkey=8lwi7t58bhmv7r7jhvmjben4z&st=zu3mb9e3&raw=1",
   "Zhang"  = "https://www.dropbox.com/scl/fi/xp4apspwizjfnu8f447s6/Zhang.xlsx?rlkey=pme7lzpqzjw7rselrwjkcv9nl&st=qup96sxl&raw=1",
@@ -78,7 +77,7 @@ ui <- tagList(
       max-height: 100px !important;  /* Adjust logo height */
       width: auto;
     }
-  "))
+"))
   ),
   
   # Navbar with Logo (Logo placed via JS in code.js)
@@ -170,8 +169,7 @@ server <- function(input, output, session) {
         data_to_display$LastUpdate <- as.character(
           as.Date(data_to_display$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
         )
-        
-        
+
         # Formatting MultiQC Report
         data_to_display$`MultiQC Report` <- ifelse(
           is.na(data_to_display$`MultiQC Report`) | data_to_display$`MultiQC Report` == "",
@@ -180,26 +178,30 @@ server <- function(input, output, session) {
         )
         # Format Notes Column: Convert semicolon-separated values into a dropdown list
         if ("Notes" %in% colnames(data_to_display)) {
-          data_to_display$Notes <- sapply(data_to_display$Notes, function(entry) {
+          data_to_display$Notes <- sapply(seq_along(data_to_display$Notes), function(i) {
+            entry <- data_to_display$Notes[i]
+            
             if (is.na(entry) || entry == "") {
               return("No Notes")
             }
             
             notes_list <- unlist(strsplit(entry, "; "))
-            dropdown_items <- paste0("<li class='dropdown-item'>", paste(notes_list, collapse = "</li><li class='dropdown-item'>"), "</li>")
+            formatted_notes <- paste0("<strong>", gsub(": ", "</strong>: ", notes_list), collapse = "<br>")
+            
+            unique_id <- paste0("collapse-notes-", i)  # Unique ID for each row
             
             return(paste0("
-      <div class='dropdown'>
-        <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown' aria-haspopup='true' aria-expanded='false'>
-          View Notes
-        </button>
-        <div class='dropdown-menu' aria-labelledby='dropdownMenuButton'>
-          ", dropdown_items, "
-        </div>
+      <button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#notes-container'>
+        View Notes
+      </button>
+      <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>
+        <h4 style='margin-top: 0; font-size: 16px;'>Notes</h4>
+        <p style='white-space: normal;'>", formatted_notes, "</p>
       </div>
     "))
           })
         }
+        
         
         # Formatting Reports
         data_to_display$Report <- ifelse(
@@ -256,8 +258,6 @@ server <- function(input, output, session) {
     }
   })
   
-  
-  
   projects <- reactivePoll(
     10000,
     session,
@@ -275,99 +275,7 @@ server <- function(input, output, session) {
     }
   )
   
-  output$projects_table <- renderDT({
-    req(user_csv_url())  # Ensure a URL exists
-    
-    data <- projects()
-    
-    if ("Message" %in% colnames(data)) {
-      return(data.frame(Message = data$Message))  # Show error messages if any
-    }
-    
-    # Ensure required columns exist
-    required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
-                          "DataType", "Status", "RawData", "Report", "Notes", 
-                          "AdditionalFiles", "LastUpdate","MultiQC")
-    missing_cols <- setdiff(required_columns, colnames(data))
-    
-    for (col in missing_cols) {
-      data[[col]] <- NA  # Create empty columns for missing fields
-    }
-    
-    # Convert "LastUpdate" to a consistent date format
-    data$LastUpdate <- as.character(
-      as.Date(data$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
-    )
-    
-    data$`MultiQC Report` <- ifelse(
-      is.na(data$`MultiQC Report`) | data$`MultiQC Report` == "",
-      "",
-      paste0("<a href='", data$`MultiQC Report`, "' download>MultiQC Report</a>")
-    )
-    
-    data$Report <- ifelse(
-      is.na(data$Report) | data$Report == "",
-      "",
-      paste0("<a href='", data$Report, "' download>Report</a>")
-    )
-    
-    # Format Notes Column: Convert semicolon-separated values into a dropdown list
-    if ("Notes" %in% colnames(data)) {
-      data$Notes <- sapply(data$Notes, function(entry) {
-        if (is.na(entry) || entry == "") {
-          return("No Notes")
-        }
-        
-        notes_list <- unlist(strsplit(entry, "; "))
-        dropdown_items <- paste0("<li>", paste(notes_list, collapse = "</li><li>"), "</li>")
-        
-        return(paste0("<div class='dropdown'>
-                      <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>
-                        View Notes
-                      </button>
-                      <ul class='dropdown-menu'>", dropdown_items, "</ul>
-                    </div>"))
-      })
-    }
-    
-    data$DataDictionary <- sapply(data$DataDictionary, function(entry) {
-      if (is.na(entry) || entry == "") {
-        return("Unsubmitted")  # Show "Unsubmitted" if the field is empty
-      }
-      
-      # Expecting "Status; URL" format, split into parts
-      parts <- unlist(strsplit(entry, "; "))
-      
-      # Extract status text (default to "Data Dictionary" if only URL exists)
-      status_text <- ifelse(length(parts) > 1, parts[1], "Submitted")
-      
-      # Extract URL (if it exists)
-      url <- ifelse(length(parts) > 1, parts[2], parts[1])
-      
-      # Ensure proper hyperlink formatting
-      if (grepl("^https?://", url)) {
-        return(paste0("<a href='", url, "' download>", status_text, "</a>"))
-      } else {
-        return(status_text)  # Just return the status if no URL is present
-      }
-    })
-    
-    data$RawData <- ifelse(
-      is.na(data$RawData) | data$RawData == "",
-      "",
-      paste0("<a href='", data$RawData, "' download>Raw Data</a>")
-    )
-    
-    data$AdditionalFiles <- ifelse(
-      is.na(data$AdditionalFiles) | data$AdditionalFiles == "",
-      "None",
-      paste0("<a href='", data$AdditionalFiles, "' download>Additional Files</a>")
-    )
-    
-    
-    # Display the table with proper formatting
-    datatable(data, escape = FALSE, options = list(autoWidth = TRUE))
-  })
+
   
   observeEvent(input$logout, {
     user_session(NULL)  # Reset user session
