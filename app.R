@@ -382,7 +382,31 @@ server <- function(input, output, session) {
         
         
         # Display the table with proper formatting
-        datatable(data_to_display[, displayed_cols, drop = FALSE], escape = FALSE, options = list(autoWidth = TRUE))
+        datatable(
+          data_to_display[, displayed_cols, drop = FALSE],
+          escape = FALSE,
+          options = list(
+            autoWidth = TRUE,
+            scrollY = "500px",   # Enable vertical scrolling (adjust height as needed)
+            paging = FALSE       # Disable pagination
+          )
+        ) %>%
+          formatStyle(
+            "Status",
+            target = "row",
+            backgroundColor = styleEqual(
+              c("Data received", "Initial QC", "Pipeline", "Post-pipeline QC",
+                "Differential Analysis", "Report Delivered", "Additional Visualizations",
+                "Manuscript Writing", "Halted due to QC"),
+              c("#BBDEFB", "#BBDEFB",  # Blues
+                "#A5D6A7", "#A5D6A7", "#A5D6A7",  # Greens
+                "#CE93D8", "#CE93D8", "#CE93D8",  # Purples
+                "#A9A9A9")  # Gray for Halted
+            )
+          )
+        
+        
+        
         
       })
 
