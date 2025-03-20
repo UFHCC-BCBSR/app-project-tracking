@@ -156,10 +156,10 @@ server <- function(input, output, session) {
       print("✅ Logout button should now be visible!")  # Debugging
       if (user == "admin") {
         # Define required columns (ensure consistency across all sheets)
-        required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
-                              "DataType", "Status", "RawData", "Report", "Notes", 
-                              "AdditionalFiles", "LastUpdate", "MultiQC Report", "PI",
-                              "hipergator filepath", "Dropbox Project Folder")  # Ensure this column exists
+        required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician", 
+                              "DataDictionary", "DataType", "Status", "RawData", "Report", 
+                              "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report", 
+                              "PI", "hipergator filepath", "Dropbox Project Folder")  
         
         # Read and standardize data for each PI
         data_list <- lapply(names(pi_csv_urls), function(pi_name) {
@@ -167,6 +167,13 @@ server <- function(input, output, session) {
           
           # Ensure the PI column is explicitly added before selecting required columns
           data$PI <- pi_name  
+          
+          # Ensure ProjectID exists and is character
+          if (!"ProjectID" %in% colnames(data)) {
+            data$ProjectID <- NA
+          } else {
+            data$ProjectID <- as.character(data$ProjectID)
+          }
           
           # Ensure required columns exist in this dataset
           missing_cols <- setdiff(required_columns, colnames(data))
@@ -183,16 +190,24 @@ server <- function(input, output, session) {
           }
           
           # Select required columns **after PI column has been added**
-          return(data[, required_columns, drop = FALSE])  # Drop = FALSE prevents accidental column removal
+          return(data[, required_columns, drop = FALSE])  
         })
         
         # Combine all standardized datasets
         data_to_display <- do.call(rbind, data_list)
-      }
-      
-      else {
+      } else {
         user_csv_url(pi_csv_urls[[user]])
-        data_to_display <- read_data_safe(user_csv_url())  
+        data_to_display <- read_data_safe(user_csv_url())
+        
+        # Remove PI column for non-admin users if it exists
+        if ("PI" %in% colnames(data_to_display)) {
+          data_to_display$PI <- NULL
+        }
+        
+        # Ensure ProjectID is character for consistency
+        if ("ProjectID" %in% colnames(data_to_display)) {
+          data_to_display$ProjectID <- as.character(data_to_display$ProjectID)
+        }
       }
       
       # Apply formatting before rendering
@@ -200,9 +215,11 @@ server <- function(input, output, session) {
         req(data_to_display)
         
         # Ensure required columns exist
-        required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
-                              "DataType", "Status", "RawData", "Report", "Notes", 
-                              "AdditionalFiles", "LastUpdate", "MultiQC Report","hipergator filepath")
+        required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician", 
+                              "DataDictionary", "DataType", "Status", "RawData", "Report", 
+                              "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report", 
+                              "PI", "hipergator filepath", "Dropbox Project Folder")  
+        
 
         missing_cols <- setdiff(required_columns, colnames(data_to_display))
         
@@ -386,9 +403,14 @@ server <- function(input, output, session) {
         
         
         # Reorder columns to move PI to the first position (if it exists)
-        if ("PI" %in% displayed_cols) {
+        if ("PI" %in% displayed_cols & "ProjectID" %in% displayed_cols) {
+          displayed_cols <- c("PI", "ProjectID", setdiff(displayed_cols, c("PI", "ProjectID")))
+        } else if ("PI" %in% displayed_cols) {
           displayed_cols <- c("PI", setdiff(displayed_cols, "PI"))
+        } else if ("ProjectID" %in% displayed_cols) {
+          displayed_cols <- c("ProjectID", setdiff(displayed_cols, "ProjectID"))
         }
+        
         
         datatable(
           data_to_display[, displayed_cols, drop = FALSE],
