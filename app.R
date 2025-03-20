@@ -159,12 +159,14 @@ server <- function(input, output, session) {
         required_columns <- c("Initiated", "StudyContact", "Bioinformatician", "DataDictionary", 
                               "DataType", "Status", "RawData", "Report", "Notes", 
                               "AdditionalFiles", "LastUpdate", "MultiQC Report", "PI",
-                              "hipergator filepath","Dropbox Project Folder")  # Ensure this column exists
+                              "hipergator filepath", "Dropbox Project Folder")  # Ensure this column exists
         
         # Read and standardize data for each PI
         data_list <- lapply(names(pi_csv_urls), function(pi_name) {
           data <- read_data_safe(pi_csv_urls[[pi_name]])
-          data$PI <- pi_name  # Add PI column
+          
+          # Ensure the PI column is explicitly added before selecting required columns
+          data$PI <- pi_name  
           
           # Ensure required columns exist in this dataset
           missing_cols <- setdiff(required_columns, colnames(data))
@@ -180,12 +182,14 @@ server <- function(input, output, session) {
             data$Initiated <- as.character(data$Initiated)
           }
           
-          return(data[, required_columns])  # Reorder columns to maintain consistency
+          # Select required columns **after PI column has been added**
+          return(data[, required_columns, drop = FALSE])  # Drop = FALSE prevents accidental column removal
         })
         
         # Combine all standardized datasets
         data_to_display <- do.call(rbind, data_list)
       }
+      
       else {
         user_csv_url(pi_csv_urls[[user]])
         data_to_display <- read_data_safe(user_csv_url())  
@@ -381,14 +385,21 @@ server <- function(input, output, session) {
         })
         
         
-        # Display the table with proper formatting
+        # Reorder columns to move PI to the first position (if it exists)
+        if ("PI" %in% displayed_cols) {
+          displayed_cols <- c("PI", setdiff(displayed_cols, "PI"))
+        }
+        
         datatable(
           data_to_display[, displayed_cols, drop = FALSE],
           escape = FALSE,
+          rownames = FALSE,  # Removes row numbers
           options = list(
             autoWidth = TRUE,
-            scrollY = "500px",   # Enable vertical scrolling (adjust height as needed)
-            paging = FALSE       # Disable pagination
+            scrollX = TRUE,  # Enable horizontal scrolling
+            scrollY = "500px",  # Enable vertical scrolling
+            paging = FALSE,  # Disable pagination
+            fixedHeader = TRUE  # Fix column headers so they scroll with the table
           )
         ) %>%
           formatStyle(
