@@ -353,54 +353,45 @@ server <- function(input, output, session) {
           paste0("<a href='", data_to_display$RawData, "' download>Raw Data</a>")
         )
         
-        # Formatting Additional Files
-        data_to_display$AdditionalFiles <- sapply(seq_along(data_to_display$AdditionalFiles), function(i) {
-          entry <- data_to_display$AdditionalFiles[i]
-          
-          # If entry is NA or empty, return "None"
-          if (is.na(entry) || entry == "") {
-            return("None")
-          }
-          
-          # Split the entry by ";" to extract multiple filename:URL pairs
-          file_entries <- unlist(strsplit(entry, "; "))
-          
-          # Extract filenames and URLs
-          file_links <- lapply(file_entries, function(file_entry) {
-            parts <- unlist(strsplit(file_entry, ": "))  # Splitting "Filename: URL"
+        if ("AdditionalFiles" %in% colnames(data_to_display)) {
+          data_to_display$AdditionalFiles <- sapply(seq_along(data_to_display$AdditionalFiles), function(i) {
+            entry <- data_to_display$AdditionalFiles[i]
             
-            if (length(parts) < 2) {
-              return("")  # Skip if formatting is wrong
+            if (is.na(entry) || entry == "") {
+              return("None")
             }
             
-            filename <- parts[1]
-            file_url <- parts[2]
+            file_entries <- unlist(strsplit(entry, ";\\s*"))
             
-            return(paste0("<a class='dropdown-item' href='", file_url, "' download>Download ", filename, "</a>"))
-          })
-          
-          file_links <- file_links[file_links != ""]  # Remove empty values (if any)
-          
-          # If only one file, show a direct download link
-          if (length(file_links) == 1) {
-            return(file_links[[1]])
-          }
-          
-          # If multiple files, create a dropdown menu
-          unique_id <- paste0("dropdown-files-", i)  # Unique ID for each dropdown
-          
-          dropdown_items <- paste0("<li>", paste(unlist(file_links), collapse = "</li><li>"), "</li>")
-          
-          return(paste0("
-    <div class='dropdown'>
-      <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>
+            formatted_links <- lapply(file_entries, function(file_entry) {
+              # Use regex to safely extract label and URL
+              match <- regexec("^([^:]+):\\s*(https?://.+)$", file_entry)
+              parts <- regmatches(file_entry, match)[[1]]
+              
+              if (length(parts) == 3) {
+                label <- parts[2]
+                url <- parts[3]
+              } else {
+                url <- file_entry
+                label <- basename(sub("\\?.*$", "", url))
+              }
+              
+              paste0("<a href='", url, "'>", label, "</a>")
+              
+            })
+            
+            unique_id <- paste0("collapse-files-", i)
+            
+            return(paste0(
+              "<button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#files-container'>
         Additional Files
       </button>
-      <ul class='dropdown-menu'>", dropdown_items, "</ul>
-    </div>
-  "))
-        })
-        
+      <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>
+        ", paste(formatted_links, collapse = "<br>"), "
+      </div>"
+            ))
+          })
+        }
         
         # Reorder columns to move PI to the first position (if it exists)
         if ("PI" %in% displayed_cols & "ProjectID" %in% displayed_cols) {
