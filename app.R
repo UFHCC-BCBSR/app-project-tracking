@@ -7,17 +7,41 @@ library(readxl)
 library(shinythemes)
 
 # Dropbox File URLs for each PI
-pi_csv_urls <- list(
-  "Licht" = "https://www.dropbox.com/scl/fi/rtl1ugx5q88jdbn75p5cl/Licht.xlsx?rlkey=gkx0fs5kgxovlq83hvopo9h1j&st=24l84lb8&raw=1",
-  "Sharma" = "https://www.dropbox.com/scl/fi/pwxbohyjenyjw7wbqrzjb/Sharma.xlsx?rlkey=8lwi7t58bhmv7r7jhvmjben4z&st=zu3mb9e3&raw=1",
-  "Zhang"  = "https://www.dropbox.com/scl/fi/xp4apspwizjfnu8f447s6/Zhang.xlsx?rlkey=pme7lzpqzjw7rselrwjkcv9nl&st=qup96sxl&raw=1",
-  "Xing" = "https://www.dropbox.com/scl/fi/hmje516zfe9eqmehpiloz/Xing.xlsx?rlkey=umh6hahlzt7lq5bpkbbo9xyug&st=zsqj5rdw&raw=1"
-)
+#pi_csv_urls <- list(
+#  "Licht" = "https://www.dropbox.com/scl/fi/rtl1ugx5q88jdbn75p5cl/Licht.xlsx?rlkey=gkx0fs5kgxovlq83hvopo9h1j&st=24l84lb8&raw=1",
+#  "Sharma" = "https://www.dropbox.com/scl/fi/pwxbohyjenyjw7wbqrzjb/Sharma.xlsx?rlkey=8lwi7t58bhmv7r7jhvmjben4z&st=zu3mb9e3&raw=1",
+#  "Zhang"  = "https://www.dropbox.com/scl/fi/xp4apspwizjfnu8f447s6/Zhang.xlsx?rlkey=pme7lzpqzjw7rselrwjkcv9nl&st=qup96sxl&raw=1",
+#  "Xing" = "https://www.dropbox.com/scl/fi/hmje516zfe9eqmehpiloz/Xing.xlsx?rlkey=umh6hahlzt7lq5bpkbbo9xyug&st=zsqj5rdw&raw=1"
+#)
+multi_pi_excel_url <- "https://www.dropbox.com/scl/fi/25m6c712m20wsomj9kf7o/PI_Projects.xlsx?rlkey=txap5o2fs7kxqz0ii0zw27lll&raw=1"
+load_pi_sheets_and_credentials <- function(url) {
+  # Download the file locally
+  temp_file <- tempfile(fileext = ".xlsx")
+  download.file(url, temp_file, mode = "wb")
+  
+  # Get sheet names
+  sheet_names <- excel_sheets(temp_file)
+  
+  # Read all sheets into a named list
+  sheet_data <- lapply(sheet_names, function(sheet) {
+    read_xlsx(temp_file, sheet = sheet, col_names = TRUE)
+  })
+  names(sheet_data) <- sheet_names
+  
+  # Generate credentials based on order
+  creds <- setNames(
+    paste0("pass", seq_along(sheet_names)),
+    sheet_names
+  )
+  
+  return(list(data = sheet_data, credentials = creds))
+}
+
 # User credentials
 valid_users <- list(
   "Licht"  = "pass1",
   "Sharma" = "pass2",
-  "Zhang"  = "pass3",
+  "Zhang"  = "pass3L",
   "Xing"="pass4",
   "admin"  = "adminpass"  # Master Login
 )
@@ -135,9 +159,26 @@ ui <- tagList(
 )
 
 
-# Server
 server <- function(input, output, session) {
   hide("logout-container")
+  
+  # Load PI sheets and credentials once per app session
+  load_pi_sheets_and_credentials <- function(url) {
+    temp_file <- tempfile(fileext = ".xlsx")
+    download.file(url, temp_file, mode = "wb")
+    
+    sheet_names <- excel_sheets(temp_file)
+    sheet_data <- lapply(sheet_names, function(sheet) read_xlsx(temp_file, sheet = sheet))
+    names(sheet_data) <- sheet_names
+    
+    credentials <- setNames(paste0("pass", seq_along(sheet_names)), sheet_names)
+    list(data = sheet_data, credentials = credentials)
+  }
+  
+  pi_info <- load_pi_sheets_and_credentials(multi_pi_excel_url)
+  pi_data_list <- pi_info$data
+  valid_users <- c(pi_info$credentials, admin = "adminpass")
+  
   user_session <- reactiveVal(NULL)
   user_csv_url <- reactiveVal(NULL)
   
@@ -145,43 +186,35 @@ server <- function(input, output, session) {
     user <- trimws(input$username)
     pass <- input$password
     
-    valid_users <- c("Licht" = "pass1", "Sharma" = "pass2", "Zhang" = "pass3", "Xing"="pass4", "admin" = "adminpass")
-    
     if (!is.null(valid_users[[user]]) && valid_users[[user]] == pass) {
       user_session(user)
-      output$login_status <- renderText("")  # Clear logout message
+      output$login_status <- renderText("")
       hide("login-page")
       show("main-page")
-      show("logout-container")  # Show logout button after login
-      print("✅ Logout button should now be visible!")  # Debugging
+      show("logout-container")
+      print("✅ Logout button should now be visible!")
+      
       if (user == "admin") {
-        # Define required columns (ensure consistency across all sheets)
         required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician", 
                               "DataDictionary", "DataType", "Status", "RawData", "Report", 
                               "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report", 
                               "PI", "hipergator filepath", "Dropbox Project Folder")  
         
-        # Read and standardize data for each PI
-        data_list <- lapply(names(pi_csv_urls), function(pi_name) {
-          data <- read_data_safe(pi_csv_urls[[pi_name]])
+        data_list <- lapply(names(pi_data_list), function(pi_name) {
+          data <- pi_data_list[[pi_name]]
+          data$PI <- pi_name
           
-          # Ensure the PI column is explicitly added before selecting required columns
-          data$PI <- pi_name  
-          
-          # Ensure ProjectID exists and is character
           if (!"ProjectID" %in% colnames(data)) {
             data$ProjectID <- NA
           } else {
             data$ProjectID <- as.character(data$ProjectID)
           }
           
-          # Ensure required columns exist in this dataset
           missing_cols <- setdiff(required_columns, colnames(data))
           for (col in missing_cols) {
-            data[[col]] <- NA  # Add missing columns as NA
+            data[[col]] <- NA
           }
           
-          # Fix date formatting
           if ("LastUpdate" %in% colnames(data)) {
             data$LastUpdate <- as.character(data$LastUpdate)
           }
@@ -189,60 +222,48 @@ server <- function(input, output, session) {
             data$Initiated <- as.character(data$Initiated)
           }
           
-          # Select required columns **after PI column has been added**
-          return(data[, required_columns, drop = FALSE])  
+          data[, required_columns, drop = FALSE]
         })
         
-        # Combine all standardized datasets
         data_to_display <- do.call(rbind, data_list)
-      } else {
-        user_csv_url(pi_csv_urls[[user]])
-        data_to_display <- read_data_safe(user_csv_url())
         
-        # Remove PI column for non-admin users if it exists
+      } else {
+        data_to_display <- pi_data_list[[user]]
+        
         if ("PI" %in% colnames(data_to_display)) {
           data_to_display$PI <- NULL
         }
         
-        # Ensure ProjectID is character for consistency
         if ("ProjectID" %in% colnames(data_to_display)) {
           data_to_display$ProjectID <- as.character(data_to_display$ProjectID)
         }
       }
       
-      # Apply formatting before rendering
       output$projects_table <- renderDT({
         req(data_to_display)
         
-        # Ensure required columns exist
         required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician", 
                               "DataDictionary", "DataType", "Status", "RawData", "Report", 
                               "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report", 
                               "PI", "hipergator filepath", "Dropbox Project Folder")  
         
-
         missing_cols <- setdiff(required_columns, colnames(data_to_display))
-        
         for (col in missing_cols) {
           data_to_display[[col]] <- NA
         }
         
-        # Convert "LastUpdate" to a consistent date format
         data_to_display$LastUpdate <- as.character(
           as.Date(data_to_display$LastUpdate, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
         )
-        # Ensure "hipergator filepath" column exists in all datasets
         if (!"hipergator filepath" %in% colnames(data_to_display)) {
           data_to_display$`hipergator filepath` <- NA
         }
-        # Determine columns to display based on user session
-        displayed_cols <- colnames(data_to_display)
         
+        displayed_cols <- colnames(data_to_display)
         if (user_session() != "admin") {
-          displayed_cols <- setdiff(displayed_cols, "hipergator filepath")  # Hide for non-admin users
+          displayed_cols <- setdiff(displayed_cols, "hipergator filepath")
         }
-
-        # Formatting MultiQC Report
+        
         data_to_display$`MultiQC Report` <- ifelse(
           is.na(data_to_display$`MultiQC Report`) | data_to_display$`MultiQC Report` == "",
           "",
@@ -254,99 +275,55 @@ server <- function(input, output, session) {
           paste0("<a href='", data_to_display$`Dropbox Project Folder`, "' target='_blank' rel='noopener noreferrer'>Visit Dropbox Project Folder</a>")
         )
         
-        # Format Notes Column: Convert semicolon-separated values into a dropdown list
         if ("Notes" %in% colnames(data_to_display)) {
           data_to_display$Notes <- sapply(seq_along(data_to_display$Notes), function(i) {
             entry <- data_to_display$Notes[i]
-            
-            if (is.na(entry) || entry == "") {
-              return("No Notes")
-            }
-            
+            if (is.na(entry) || entry == "") return("No Notes")
             notes_list <- unlist(strsplit(entry, "; "))
             formatted_notes <- paste0("<strong>", gsub(": ", "</strong>: ", notes_list), collapse = "<br>")
-            
-            unique_id <- paste0("collapse-notes-", i)  # Unique ID for each row
-            
-            return(paste0("
-      <button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#notes-container'>
-        View Notes
-      </button>
-      <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>
-        <p style='white-space: normal;'>", formatted_notes, "</p>  <!-- Removed the <h4> header -->
-      </div>
-    "))
+            unique_id <- paste0("collapse-notes-", i)
+            paste0("
+              <button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#notes-container'>View Notes</button>
+              <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>
+                <p style='white-space: normal;'>", formatted_notes, "</p>
+              </div>")
           })
         }
         
-        
-        # Formatting Reports
         data_to_display$Report <- sapply(seq_along(data_to_display$Report), function(i) {
           entry <- data_to_display$Report[i]
-          
-          # If entry is NA or empty, return empty string
-          if (is.na(entry) || entry == "") {
-            return("")
-          }
-          
-          # Split the entry by ";" to extract multiple URLs
+          if (is.na(entry) || entry == "") return("")
           report_list <- unlist(strsplit(entry, "; "))
-          
-          # If only one URL, display a simple "Download Report" link
           if (length(report_list) == 1) {
             return(paste0("<a href='", report_list[1], "' download>Download Report</a>"))
           }
-          
-          # If multiple URLs, create a dropdown button with multiple links
-          unique_id <- paste0("dropdown-report-", i)  # Unique ID for each dropdown
-          
+          unique_id <- paste0("dropdown-report-", i)
           dropdown_items <- paste0(
             "<li><a class='dropdown-item' href='", report_list, "' download>Download Report V", seq_along(report_list), "</a></li>",
             collapse = ""
           )
-          
-          return(paste0("
-    <div class='dropdown'>
-      <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>
-        Reports
-      </button>
-      <ul class='dropdown-menu'>", dropdown_items, "</ul>
-    </div>
-  "))
+          paste0("
+            <div class='dropdown'>
+              <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>Reports</button>
+              <ul class='dropdown-menu'>", dropdown_items, "</ul>
+            </div>")
         })
         
-        
-        # Formatting Data Dictionary
         data_to_display$DataDictionary <- sapply(data_to_display$DataDictionary, function(entry) {
-          if (is.na(entry) || entry == "") {
-            return("Unsubmitted")  # Show "Unsubmitted" if the field is empty
-          }
-          
-          # Expecting "Status; URL" format, split into parts
+          if (is.na(entry) || entry == "") return("Unsubmitted")
           parts <- unlist(strsplit(entry, "; "))
-          
-          # Extract status text (default to "Data Dictionary" if only URL exists)
           status_text <- ifelse(length(parts) > 1, parts[1], "Submitted")
-          
-          # Extract URL (if it exists)
           url <- ifelse(length(parts) > 1, parts[2], parts[1])
-          
-          # Ensure proper hyperlink formatting
           if (grepl("^https?://", url)) {
             return(paste0("<a href='", url, "' download>", status_text, "</a>"))
           } else {
-            return(status_text)  # Just return the status if no URL is present
+            return(status_text)
           }
         })
         
-        # Convert "Initiated" to a consistent date format
         data_to_display$Initiated <- as.character(
           as.Date(data_to_display$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
         )
-        
-        
-        
-        # Formatting Raw Data
         data_to_display$RawData <- ifelse(
           is.na(data_to_display$RawData) | data_to_display$RawData == "",
           "",
@@ -356,18 +333,11 @@ server <- function(input, output, session) {
         if ("AdditionalFiles" %in% colnames(data_to_display)) {
           data_to_display$AdditionalFiles <- sapply(seq_along(data_to_display$AdditionalFiles), function(i) {
             entry <- data_to_display$AdditionalFiles[i]
-            
-            if (is.na(entry) || entry == "") {
-              return("None")
-            }
-            
+            if (is.na(entry) || entry == "") return("None")
             file_entries <- unlist(strsplit(entry, ";\\s*"))
-            
             formatted_links <- lapply(file_entries, function(file_entry) {
-              # Use regex to safely extract label and URL
               match <- regexec("^([^:]+):\\s*(https?://.+)$", file_entry)
               parts <- regmatches(file_entry, match)[[1]]
-              
               if (length(parts) == 3) {
                 label <- parts[2]
                 url <- parts[3]
@@ -375,25 +345,16 @@ server <- function(input, output, session) {
                 url <- file_entry
                 label <- basename(sub("\\?.*$", "", url))
               }
-              
               paste0("<a href='", url, "'>", label, "</a>")
-              
             })
-            
             unique_id <- paste0("collapse-files-", i)
-            
-            return(paste0(
-              "<button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#files-container'>
-        Additional Files
-      </button>
-      <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>
-        ", paste(formatted_links, collapse = "<br>"), "
-      </div>"
-            ))
+            paste0(
+              "<button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#files-container'>Additional Files</button>
+              <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>",
+              paste(formatted_links, collapse = "<br>"), "</div>")
           })
         }
         
-        # Reorder columns to move PI to the first position (if it exists)
         if ("PI" %in% displayed_cols & "ProjectID" %in% displayed_cols) {
           displayed_cols <- c("PI", "ProjectID", setdiff(displayed_cols, c("PI", "ProjectID")))
         } else if ("PI" %in% displayed_cols) {
@@ -402,17 +363,16 @@ server <- function(input, output, session) {
           displayed_cols <- c("ProjectID", setdiff(displayed_cols, "ProjectID"))
         }
         
-        
         datatable(
           data_to_display[, displayed_cols, drop = FALSE],
           escape = FALSE,
-          rownames = FALSE,  # Removes row numbers
+          rownames = FALSE,
           options = list(
             autoWidth = TRUE,
-            scrollX = TRUE,  # Enable horizontal scrolling
-            scrollY = "500px",  # Enable vertical scrolling
-            paging = FALSE,  # Disable pagination
-            fixedHeader = TRUE  # Fix column headers so they scroll with the table
+            scrollX = TRUE,
+            scrollY = "500px",
+            paging = FALSE,
+            fixedHeader = TRUE
           )
         ) %>%
           formatStyle(
@@ -422,55 +382,26 @@ server <- function(input, output, session) {
               c("Data received", "Initial QC", "Pipeline", "Post-pipeline QC",
                 "Differential Analysis", "Report Delivered", "Additional Visualizations",
                 "Manuscript Writing", "Halted due to QC"),
-              c("#BBDEFB", "#BBDEFB",  # Blues
-                "#A5D6A7", "#A5D6A7", "#A5D6A7",  # Greens
-                "#CE93D8", "#CE93D8", "#CE93D8",  # Purples
-                "#A9A9A9")  # Gray for Halted
+              c("#BBDEFB", "#BBDEFB", "#A5D6A7", "#A5D6A7", "#A5D6A7",
+                "#CE93D8", "#CE93D8", "#CE93D8", "#A9A9A9")
             )
           )
-        
-        
-        
-        
       })
-
       
     } else {
       output$login_status <- renderText("❌ Invalid username or password.")
     }
   })
   
-  projects <- reactivePoll(
-    10000,
-    session,
-    checkFunc = function() {
-      url <- user_csv_url()
-      if (!is.null(url)) get_last_modified(url) else Sys.time()
-    },
-    valueFunc = function() {
-      url <- user_csv_url()
-      if (!is.null(url)) {
-        read_data_safe(url)
-      } else {
-        return(data.frame(Message = "No file URL available."))
-      }
-    }
-  )
-  
-
-  
   observeEvent(input$logout, {
-    user_session(NULL)  # Reset user session
-    user_csv_url(NULL)  # Reset PI file selection
-    output$projects_table <- renderDT(NULL)  # Clear table output
-    output$login_status <- renderText("✅ Successfully logged out.")  # Show logout message
-    
-    hide("main-page")  # Hide main page
-    show("login-page")  # Show login page again
-    hide("logout-container")  # Hide logout button when logging out
+    user_session(NULL)
+    user_csv_url(NULL)
+    output$projects_table <- renderDT(NULL)
+    output$login_status <- renderText("✅ Successfully logged out.")
+    hide("main-page")
+    show("login-page")
+    hide("logout-container")
   })
-  
-  
 }
 
 shinyApp(ui, server)
