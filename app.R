@@ -322,21 +322,40 @@ server <- function(input, output, session) {
         data_to_display$Report <- sapply(seq_along(data_to_display$Report), function(i) {
           entry <- data_to_display$Report[i]
           if (is.na(entry) || entry == "") return("")
-          report_list <- unlist(strsplit(entry, "; "))
-          if (length(report_list) == 1) {
-            return(paste0("<a href='", report_list[1], "' download>Download Report</a>"))
+          
+          report_entries <- unlist(strsplit(entry, ";\\s*"))
+          
+          # If only 1 file, simple download link
+          if (length(report_entries) == 1) {
+            url <- sub("^[^:]+:\\s*", "", report_entries[1])  # remove label if exists
+            return(paste0("<a href='", url, "' download>Download Report</a>"))
           }
+          
+          # If multiple files, create dropdown menu
+          formatted_links <- lapply(seq_along(report_entries), function(j) {
+            file_entry <- report_entries[j]
+            match <- regexec("^([^:]+):\\s*(https?://.+)$", file_entry)
+            parts <- regmatches(file_entry, match)[[1]]
+            if (length(parts) == 3) {
+              label <- parts[2]
+              url <- parts[3]
+            } else {
+              url <- file_entry
+              label <- paste0("Report V", j)
+            }
+            paste0("<li><a class='dropdown-item' href='", url, "' download>", label, "</a></li>")
+          })
+          
           unique_id <- paste0("dropdown-report-", i)
-          dropdown_items <- paste0(
-            "<li><a class='dropdown-item' href='", report_list, "' download>Download Report V", seq_along(report_list), "</a></li>",
-            collapse = ""
+          
+          paste0(
+            "<div class='dropdown'>
+      <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>Reports</button>
+      <ul class='dropdown-menu'>", paste(formatted_links, collapse = ""), "</ul>
+    </div>"
           )
-          paste0("
-            <div class='dropdown'>
-              <button class='btn btn-secondary dropdown-toggle' type='button' data-toggle='dropdown'>Reports</button>
-              <ul class='dropdown-menu'>", dropdown_items, "</ul>
-            </div>")
         })
+        
         
         data_to_display$DataDictionary <- sapply(data_to_display$DataDictionary, function(entry) {
           if (is.na(entry) || entry == "") return("Unsubmitted")
