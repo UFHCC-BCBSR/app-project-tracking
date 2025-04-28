@@ -264,11 +264,40 @@ server <- function(input, output, session) {
           displayed_cols <- setdiff(displayed_cols, "hipergator filepath")
         }
         
-        data_to_display$`MultiQC Report` <- ifelse(
-          is.na(data_to_display$`MultiQC Report`) | data_to_display$`MultiQC Report` == "",
-          "",
-          paste0("<a href='", data_to_display$`MultiQC Report`, "' download>Download MultiQC Report</a>")
-        )
+        data_to_display$`MultiQC Report` <- sapply(seq_along(data_to_display$`MultiQC Report`), function(i) {
+          entry <- data_to_display$`MultiQC Report`[i]
+          if (is.na(entry) || entry == "") return("")
+          
+          file_entries <- unlist(strsplit(entry, ";\\s*"))
+          
+          # If only 1 file, simple download link
+          if (length(file_entries) == 1) {
+            url <- sub("^[^:]+:\\s*", "", file_entries[1])  # remove label if exists
+            return(paste0("<a href='", url, "' download>Download MultiQC Report</a>"))
+          }
+          
+          # If multiple files, create collapse panel
+          formatted_links <- lapply(file_entries, function(file_entry) {
+            match <- regexec("^([^:]+):\\s*(https?://.+)$", file_entry)
+            parts <- regmatches(file_entry, match)[[1]]
+            if (length(parts) == 3) {
+              label <- parts[2]
+              url <- parts[3]
+            } else {
+              url <- file_entry
+              label <- basename(sub("\\?.*$", "", url))  # remove query string
+            }
+            paste0("<a href='", url, "' download>", label, "</a>")
+          })
+          
+          unique_id <- paste0("collapse-multiqc-", i)
+          paste0(
+            "<button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#multiqc-container'>MultiQC Reports</button>
+    <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>",
+            paste(formatted_links, collapse = "<br>"), "</div>"
+          )
+        })
+        
         data_to_display$`Dropbox Project Folder` <- ifelse(
           is.na(data_to_display$`Dropbox Project Folder`) | data_to_display$`Dropbox Project Folder` == "",
           "",
