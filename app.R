@@ -266,17 +266,20 @@ server <- function(input, output, session) {
         
         data_to_display$`MultiQC Report` <- sapply(seq_along(data_to_display$`MultiQC Report`), function(i) {
           entry <- data_to_display$`MultiQC Report`[i]
-          if (is.na(entry) || entry == "") return("")
+          if (is.na(entry) || entry == "") return("NA")
           
           file_entries <- unlist(strsplit(entry, ";\\s*"))
+          file_entries <- file_entries[grepl("https?://", file_entries)]  # keep only valid URLs
           
-          # If only 1 file, simple download link
+          if (length(file_entries) == 0) return("NA")  # nothing valid
+          
+          # If only 1 valid file, simple download link
           if (length(file_entries) == 1) {
             url <- sub("^[^:]+:\\s*", "", file_entries[1])  # remove label if exists
             return(paste0("<a href='", url, "' download>Download MultiQC Report</a>"))
           }
           
-          # If multiple files, create collapse panel
+          # If multiple valid files, create collapse panel
           formatted_links <- lapply(file_entries, function(file_entry) {
             match <- regexec("^([^:]+):\\s*(https?://.+)$", file_entry)
             parts <- regmatches(file_entry, match)[[1]]
@@ -293,10 +296,11 @@ server <- function(input, output, session) {
           unique_id <- paste0("collapse-multiqc-", i)
           paste0(
             "<button class='btn btn-secondary' data-toggle='collapse' data-target='#", unique_id, "' data-parent='#multiqc-container'>MultiQC Reports</button>
-    <div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>",
+<div id='", unique_id, "' class='collapse' style='border: 1px solid #ccc; padding: 10px; margin-top: 5px;'>",
             paste(formatted_links, collapse = "<br>"), "</div>"
           )
         })
+        
         
         data_to_display$`Dropbox Project Folder` <- ifelse(
           is.na(data_to_display$`Dropbox Project Folder`) | data_to_display$`Dropbox Project Folder` == "",
@@ -359,15 +363,27 @@ server <- function(input, output, session) {
         
         data_to_display$DataDictionary <- sapply(data_to_display$DataDictionary, function(entry) {
           if (is.na(entry) || entry == "") return("Unsubmitted")
-          parts <- unlist(strsplit(entry, "; "))
-          status_text <- ifelse(length(parts) > 1, parts[1], "Submitted")
-          url <- ifelse(length(parts) > 1, parts[2], parts[1])
-          if (grepl("^https?://", url)) {
+          
+          parts <- unlist(strsplit(entry, ";\\s*"))  # allow optional space after semicolon
+          
+          # Case: label + URL
+          if (length(parts) > 1 && grepl("^https?://", parts[2])) {
+            status_text <- parts[1]
+            url <- parts[2]
             return(paste0("<a href='", url, "' download>", status_text, "</a>"))
-          } else {
-            return(status_text)
           }
+          
+          # Case: single entry that is a URL
+          if (length(parts) == 1 && grepl("^https?://", parts[1])) {
+            url <- parts[1]
+            label <- basename(sub("\\?.*$", "", url))  # fallback to filename
+            return(paste0("<a href='", url, "' download>", label, "</a>"))
+          }
+          
+          # Otherwise, just return the raw text
+          return(entry)
         })
+        
         
         data_to_display$Initiated <- as.character(
           as.Date(data_to_display$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
