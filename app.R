@@ -138,7 +138,8 @@ ui <- tagList(
               h3("UFHCC BCB-SR Bioinformatics Project Portal"),
               p(HTML("This portal provides a way to track and manage bioinformatics projects at UFHCC BCB-SR.")),
               p(HTML("Users can log in to view their projects, track progress, and download relevant reports and data.")),
-              p(HTML("Note that <strong>access to the portal does not grant access to data</strong>; data access is controlled by file storage services (e.g., Dropbox)."))
+              p(HTML("Note that <strong>access to the portal does not grant access to data</strong>; data access is controlled by file storage services (e.g., Dropbox)."),
+              p(HTML("<strong>Github Repositories are often private</strong>; If you require acceess, contact your collaborating bioinformatician.")))
           ),
           
           textOutput("admin_message"),  # Admin message placeholder
@@ -198,7 +199,8 @@ server <- function(input, output, session) {
         required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician", 
                               "DataDictionary", "DataType", "Status", "RawData", "Report", 
                               "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report", 
-                              "PI", "hipergator filepath", "Dropbox Project Folder")  
+                              "PI", "hipergator filepath", "Dropbox Project Folder", "Github_Repo")
+        
         
         data_list <- lapply(names(pi_data_list), function(pi_name) {
           data <- pi_data_list[[pi_name]]
@@ -245,7 +247,8 @@ server <- function(input, output, session) {
         required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician", 
                               "DataDictionary", "DataType", "Status", "RawData", "Report", 
                               "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report", 
-                              "PI", "hipergator filepath", "Dropbox Project Folder")  
+                              "PI", "hipergator filepath", "Dropbox Project Folder", "Github_Repo")
+        
         
         missing_cols <- setdiff(required_columns, colnames(data_to_display))
         for (col in missing_cols) {
@@ -301,6 +304,18 @@ server <- function(input, output, session) {
           )
         })
         
+        data_to_display$Github_Repo <- sapply(data_to_display$Github_Repo, function(entry) {
+          if (is.na(entry) || entry == "") return("")
+          
+          label <- basename(sub("\\?.*$", "", entry))  # Clean label if needed
+          tooltip <- "If you get a 404 error, the repository may be private. Contact BCB-SR for access."
+          
+          if (grepl("^https?://", entry)) {
+            return(paste0("<a href='", entry, "' target='_blank' title='", tooltip, "'>", label, "</a>"))
+          } else {
+            return(entry)
+          }
+        })
         
         data_to_display$`Dropbox Project Folder` <- ifelse(
           is.na(data_to_display$`Dropbox Project Folder`) | data_to_display$`Dropbox Project Folder` == "",
