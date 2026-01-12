@@ -239,7 +239,7 @@ server <- function(input, output, session) {
       
       if (user == "admin") {
         required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician",
-                              "DataDictionary", "DataType", "Status", "RawData", "Report",
+                              "Metadata", "DataType", "Status", "RawData", "Report",
                               "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report",
                               "PI", "hipergator filepath", "Dropbox Project Folder", "Github_Repo")
         
@@ -277,7 +277,7 @@ server <- function(input, output, session) {
       output$projects_table <- renderDT({
         req(data_to_display)
         required_columns <- c("ProjectID", "Initiated", "StudyContact", "Bioinformatician",
-                              "DataDictionary", "DataType", "Status", "RawData", "Report",
+                              "Metadata", "DataType", "Status", "RawData", "Report",
                               "Notes", "AdditionalFiles", "LastUpdate", "MultiQC Report",
                               "PI", "hipergator filepath", "Dropbox Project Folder", "Github_Repo")
         missing_cols <- setdiff(required_columns, colnames(data_to_display))
@@ -381,20 +381,10 @@ server <- function(input, output, session) {
     </div>"
           )
         })
-        data_to_display$DataDictionary <- sapply(data_to_display$DataDictionary, function(entry) {
+        data_to_display$Metadata <- sapply(data_to_display$Metadata, function(entry) {
           if (is.na(entry) || entry == "") return("Unsubmitted")
-          parts <- unlist(strsplit(entry, ";\\s*"))
-          if (length(parts) > 1 && grepl("^https?://", parts[2])) {
-            status_text <- parts[1]
-            url <- parts[2]
-            return(paste0("<a href='", url, "' download>", status_text, "</a>"))
-          }
-          if (length(parts) == 1 && grepl("^https?://", parts[1])) {
-            url <- parts[1]
-            label <- basename(sub("\\?.*$", "", url))
-            return(paste0("<a href='", url, "' download>", label, "</a>"))
-          }
-          return(entry)
+          # Always display as "Metadata" link
+          return(paste0("<a href='", entry, "' target='_blank'>Metadata</a>"))
         })
         data_to_display$Initiated <- as.character(
           as.Date(data_to_display$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
