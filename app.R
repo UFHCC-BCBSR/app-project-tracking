@@ -399,11 +399,25 @@ server <- function(input, output, session) {
         data_to_display$Initiated <- as.character(
           as.Date(data_to_display$Initiated, tryFormats = c("%Y-%m-%d", "%m/%d/%Y"))
         )
-        data_to_display$RawData <- ifelse(
-          is.na(data_to_display$RawData) | data_to_display$RawData == "",
-          "",
-          paste0("<a href='", data_to_display$RawData, "' download>Raw Data</a>")
-        )
+        # Replace the RawData processing section with this:
+        data_to_display$RawData <- sapply(data_to_display$RawData, function(entry) {
+          if (is.na(entry) || entry == "") return("")
+          
+          # Check if it's a URL:
+          # 1. Starts with http:// or https://
+          # 2. Contains common domain suffixes (.edu, .com, .org, etc.)
+          is_url <- grepl("^https?://", entry) || 
+            grepl("\\.(edu|com|org|net|gov|io|co|us|uk|ca)(/|$|\\?|#)", entry, ignore.case = TRUE)
+          
+          if (is_url) {
+            # Add https:// if missing
+            url <- ifelse(grepl("^https?://", entry), entry, paste0("https://", entry))
+            return(paste0("<a href='", url, "' target='_blank'>Raw Data</a>"))
+          } else {
+            # It's a filepath (e.g., hipergator path), display as text
+            return(entry)
+          }
+        })
         if ("AdditionalFiles" %in% colnames(data_to_display)) {
           data_to_display$AdditionalFiles <- sapply(seq_along(data_to_display$AdditionalFiles), function(i) {
             entry <- data_to_display$AdditionalFiles[i]
